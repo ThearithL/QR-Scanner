@@ -1,4 +1,4 @@
-# QR Buddy — Telegram QR scanner + Mini App
+# QR Code Scanner — Telegram QR scanner + Mini App
 
 A bilingual (Khmer/English) QR scanner and QR creator. The Mini App scans images locally in the browser. The Telegram bot scans image uploads transiently and can generate QR images from text or links.
 
@@ -61,7 +61,7 @@ Free Render service filesystems are ephemeral. This project intentionally keeps 
 ## Telegram Mini App setup
 
 - The Mini App URL must use HTTPS and be publicly accessible.
-- The bot sends an inline **Open QR Buddy Mini App** button if `MINI_APP_URL` is set.
+- When `MINI_APP_URL` is set, the Telegram chat menu button is changed from the command list to **QR Code Scanner**, which opens the Mini App directly. Slash commands remain available by typing `/`.
 - The app also works as a normal website; Telegram WebApp APIs are optional enhancements.
 
 ## Commands

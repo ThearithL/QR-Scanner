@@ -1,4 +1,4 @@
-"""QR Buddy Telegram bot. Stores scan history in memory only; images are transient."""
+"""QR Code Scanner Telegram bot. Stores scan history in memory only; images are transient."""
 import io
 import asyncio
 import logging
@@ -14,7 +14,7 @@ import cv2
 import numpy as np
 import zxingcpp
 import qrcode
-from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, Update, WebAppInfo
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, MenuButtonWebApp, ReplyKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 logging.basicConfig(level=logging.INFO)
@@ -31,7 +31,7 @@ PENDING = defaultdict(str)
 
 TEXT = {
     "en": {
-        "start": "\U0001f44b Welcome to QR Buddy!\n\n\U0001f4f7 Send a QR image or screenshot to scan it. I can detect multiple codes.\n\u2728 Send text or a link and I\u2019ll create a QR image.\n\nImages are processed temporarily. Recent results stay in memory only and may disappear when the service restarts.",
+        "start": "\U0001f44b Welcome to QR Code Scanner!\n\n\U0001f4f7 Send a QR image or screenshot to scan it. I can detect multiple codes.\n\u2728 Send text or a link and I\u2019ll create a QR image.\n\nImages are processed temporarily. Recent results stay in memory only and may disappear when the service restarts.",
         "menu": "\U0001f4f7 Scan QR", "create": "\u2728 Create QR", "history": "\U0001f558 History", "settings": "\u2699\ufe0f Settings", "language": "\U0001f310 Change language",
         "convert": "\U0001f504 Convert link / QR",
         "settings_msg": "\U0001f310 Tap Change language below or send /lang to switch between English and Khmer.",
@@ -45,7 +45,7 @@ TEXT = {
         "size_set": "QR image size set to {size}px. This setting is kept while the bot is running.",
     },
     "km": {
-        "start": "\U0001f44b \u179f\u17bc\u1798\u179f\u17d2\u179c\u17b6\u1782\u1798\u1793\u17cd\u1798\u1780\u1780\u17b6\u1793\u17cb QR Buddy!\n\n\U0001f4f7 \u1795\u17d2\u1789\u17be\u179a\u17bc\u1794 QR \u17ac Screenshot \u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793\u17d4 \u17a2\u17b6\u1785\u179a\u1780 QR \u1785\u17d2\u179a\u17be\u1793\u1780\u17d2\u1793\u17bb\u1784\u179a\u17bc\u1794\u178f\u17c2\u1798\u17bd\u1799\u17d4\n\u2728 \u1795\u17d2\u1789\u17be\u17a2\u178f\u17d2\u1790\u1794\u1791 \u17ac\u178f\u17c6\u178e \u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u1784\u17d2\u1780\u17be\u178f\u179a\u17bc\u1794 QR\u17d4\n\n\u179a\u17bc\u1794\u1797\u17b6\u1796\u178a\u17c6\u178e\u17be\u179a\u1780\u17b6\u179a\u1794\u178e\u17d2\u178f\u17c4\u17c7\u17a2\u17b6\u179f\u1793\u17d2\u1793\u17d4 \u179b\u1791\u17d2\u1792\u1795\u179b\u1790\u17d2\u1798\u17b8\u17d7\u179a\u1780\u17d2\u179f\u17b6\u1791\u17bb\u1780\u178f\u17c2\u1780\u17d2\u1793\u17bb\u1784 memory \u17a0\u17be\u1799\u17a2\u17b6\u1785\u1794\u17b6\u178f\u17cb\u1796\u17c1\u179b service restart\u17d4",
+        "start": "\U0001f44b \u179f\u17bc\u1798\u179f\u17d2\u179c\u17b6\u1782\u1798\u1793\u17cd\u1798\u1780\u1780\u17b6\u1793\u17cb QR Code Scanner!\n\n\U0001f4f7 \u1795\u17d2\u1789\u17be\u179a\u17bc\u1794 QR \u17ac Screenshot \u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793\u17d4 \u17a2\u17b6\u1785\u179a\u1780 QR \u1785\u17d2\u179a\u17be\u1793\u1780\u17d2\u1793\u17bb\u1784\u179a\u17bc\u1794\u178f\u17c2\u1798\u17bd\u1799\u17d4\n\u2728 \u1795\u17d2\u1789\u17be\u17a2\u178f\u17d2\u1790\u1794\u1791 \u17ac\u178f\u17c6\u178e \u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u1784\u17d2\u1780\u17be\u178f\u179a\u17bc\u1794 QR\u17d4\n\n\u179a\u17bc\u1794\u1797\u17b6\u1796\u178a\u17c6\u178e\u17be\u179a\u1780\u17b6\u179a\u1794\u178e\u17d2\u178f\u17c4\u17c7\u17a2\u17b6\u179f\u1793\u17d2\u1793\u17d4 \u179b\u1791\u17d2\u1792\u1795\u179b\u1790\u17d2\u1798\u17b8\u17d7\u179a\u1780\u17d2\u179f\u17b6\u1791\u17bb\u1780\u178f\u17c2\u1780\u17d2\u1793\u17bb\u1784 memory \u17a0\u17be\u1799\u17a2\u17b6\u1785\u1794\u17b6\u178f\u17cb\u1796\u17c1\u179b service restart\u17d4",
         "menu": "\U0001f4f7 \u179f\u17d2\u1780\u17c1\u1793 QR", "create": "\u2728 \u1794\u1784\u17d2\u1780\u17be\u178f QR", "history": "\U0001f558 \u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7", "settings": "\u2699\ufe0f \u1780\u17b6\u179a\u1780\u17c6\u178e\u178f\u17cb", "language": "\U0001f310 \u1794\u17d2\u178f\u17bc\u179a\u1797\u17b6\u179f\u17b6",
         "convert": "\U0001f504 \u1794\u17d2\u178f\u17bc\u179a\u178f\u17c6\u178e / QR",
         "settings_msg": "\U0001f310 \u1785\u17bb\u1785 \xab\u1794\u17d2\u178f\u17bc\u179a\u1797\u17b6\u179f\u17b6\xbb \u1781\u17b6\u1784\u1780\u17d2\u179a\u17c4\u1798 \u17ac\u1795\u17d2\u1789\u17be /lang \u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u17d2\u178f\u17bc\u179a\u179a\u179c\u17b6\u1784\u1797\u17b6\u179f\u17b6\u1781\u17d2\u1798\u17c2\u179a \u1793\u17b7\u1784\u17a2\u1784\u17cb\u1782\u17d2\u179b\u17c1\u179f\u17d4",
@@ -161,7 +161,7 @@ def make_qr(value, size=1024):
     qr.add_data(value)
     qr.make(fit=True)
     img = qr.make_image(fill_color="#123C46", back_color="#FFFFFF")
-    buf = io.BytesIO(); buf.name = "qr-buddy.png"; img.save(buf, format="PNG"); buf.seek(0)
+    buf = io.BytesIO(); buf.name = "qr-code-scanner.png"; img.save(buf, format="PNG"); buf.seek(0)
     return buf
 
 def keyboard(uid):
@@ -172,7 +172,7 @@ def keyboard(uid):
 
 def mini_button():
     if MINI_APP_URL.startswith("https://"):
-        return InlineKeyboardMarkup([[InlineKeyboardButton("Open QR Buddy Mini App", web_app=WebAppInfo(url=MINI_APP_URL))]])
+        return InlineKeyboardMarkup([[InlineKeyboardButton("Open QR Code Scanner", web_app=WebAppInfo(url=MINI_APP_URL))]])
     return None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -228,7 +228,7 @@ async def size_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def miniapp_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if MINI_APP_URL.startswith("https://"):
-        await update.message.reply_text("Open QR Buddy Mini App:", reply_markup=mini_button())
+        await update.message.reply_text("Open QR Code Scanner:", reply_markup=mini_button())
     else:
         await update.message.reply_text("Mini App is not configured yet. Set MINI_APP_URL in Render.")
 
@@ -241,7 +241,7 @@ async def cancel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def set_commands(app: Application):
     await app.bot.set_my_commands([
-        BotCommand("start", "Open QR Buddy menu"),
+        BotCommand("start", "Open QR Code Scanner menu"),
         BotCommand("scan", "Scan a QR image"),
         BotCommand("createqr", "Create a QR from text or a link"),
         BotCommand("size", "Set QR image size: 256, 512, 1024, or 2048"),
@@ -253,6 +253,15 @@ async def set_commands(app: Application):
         BotCommand("cancel", "Cancel the current action"),
         BotCommand("help", "Show available commands"),
     ])
+    # Replace Telegram's default "Menu" command-list button with a direct
+    # Mini App launcher. Slash commands remain available to users.
+    if MINI_APP_URL.startswith("https://"):
+        await app.bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(
+                text="QR Code Scanner",
+                web_app=WebAppInfo(url=MINI_APP_URL),
+            )
+        )
 
 async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid=update.effective_user.id
@@ -357,7 +366,7 @@ async def run_bot():
 
 def main():
     threading.Thread(target=serve_health,daemon=True).start()
-    log.info("Starting QR Buddy bot and health server on port %s",PORT)
+    log.info("Starting QR Code Scanner bot and health server on port %s",PORT)
     asyncio.run(run_bot())
 
 if __name__=="__main__": main()
