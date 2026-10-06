@@ -148,14 +148,14 @@ def decode_image(data):
 
 def make_qr(value):
     # Dark teal on white keeps a branded look while preserving strong contrast.
-    img = qrcode.make(
-        value,
+    qr = qrcode.QRCode(
         error_correction=qrcode.constants.ERROR_CORRECT_H,
         box_size=12,
         border=4,
-        fill_color="#123C46",
-        back_color="#FFFFFF",
     )
+    qr.add_data(value)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="#123C46", back_color="#FFFFFF")
     buf = io.BytesIO(); buf.name = "qr-buddy.png"; img.save(buf, format="PNG"); buf.seek(0)
     return buf
 

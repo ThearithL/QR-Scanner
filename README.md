@@ -48,6 +48,8 @@ This repo has a `render.yaml` Blueprint with two services:
    - `MINI_APP_URL` — the Static Site HTTPS URL.
 5. Save changes/redeploy, then open the bot and send `/start`.
 
+Run exactly one bot polling process for each Telegram token. If Render logs `Conflict: terminated by other getUpdates request`, stop any duplicate bot Web Service/worker or local `python bot.py` using that token; keep only one active poller. The Static Site does not poll Telegram and can remain deployed.
+
 The bot Web Service also serves the Mini App at its root URL (`https://<your-bot-service>.onrender.com/`) and keeps `/health` for Render's health check. You can set `MINI_APP_URL` to this same bot-service HTTPS URL, so the Mini App button opens the app instead of the JSON health response. The separate Static Site is optional; if you use it, set `MINI_APP_URL` to that site's HTTPS URL instead.
 
 The mini app is a Render **Static Site**, so it does not use a sleeping web server. Render Free **Web Services** can spin down after 15 minutes without inbound requests, then need about a minute to start on the next request. A `/health` endpoint is included for service health checks, but health checks do not keep a Free service awake. Telegram bot polling is outbound traffic and does not count as inbound traffic to prevent spin-down. Therefore the bot may be temporarily unavailable after idle periods. Render does not provide an always-on bot on the Free web-service plan; to keep the bot continuously available, use a paid always-on service or a hosting provider with a suitable free always-on worker plan.
