@@ -7,7 +7,7 @@ A bilingual (Khmer/English) QR scanner and QR creator. The Mini App scans images
 - Scan QR codes from photos, screenshots, and image files; attempt multi-code detection with ZXing and enhanced OpenCV fallbacks for colorful, inverted, or logo-style codes.
 - Use the Mini App quick menu to jump to Scan, Create, Convert, History, and language controls.
 - Use the **Convert** option for either direction: turn a link into a QR image, or scan a QR image to read its link/text.
-- Create clean, colored QR codes in the Mini App with high contrast presets and custom colors; bot QR images use dark teal on white with a full quiet border for scanability.
+- Create clean, colored QR codes in the Mini App with high contrast presets and custom colors; choose 256, 512, 1024 (HD), or 2048 (print) pixel exports. Bot QR images use dark teal on white with a full quiet border for scanability, and `/size` controls the output size.
 - Create QR images for any text or URL in the bot. The Mini App additionally builds URL, text, phone, Wi‑Fi, and location QR payloads.
 - Heuristic warnings for suspicious-looking links. Link checks are not a security guarantee, and links are never opened automatically.
 - Khmer/English UI, menu buttons, recent scan history, `/clear`, `/history`, `/lang`, and `/help`.
@@ -64,7 +64,7 @@ Free Render service filesystems are ephemeral. This project intentionally keeps 
 
 ## Commands
 
-`/start` opens the menu · `/lang` toggles Khmer/English · `/history` shows recent bot scans · `/clear` clears that in-memory history · `/help` explains usage.
+`/start` opens the menu · `/scan` waits for an image · `/createqr` waits for text/link · `/size` shows the current output size (set with `/size 256`, `/size 512`, `/size 1024`, or `/size 2048`) · `/lang` toggles Khmer/English · `/history` shows recent bot scans · `/clear` clears that in-memory history · `/help` explains usage.
 
 ## Notes
 
