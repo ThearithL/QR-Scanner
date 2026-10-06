@@ -1,6 +1,5 @@
 """QR Buddy Telegram bot. Stores scan history in memory only; images are transient."""
 import io
-import asyncio
 import logging
 import os
 import re
@@ -25,18 +24,18 @@ LANG = defaultdict(lambda: "en")
 
 TEXT = {
     "en": {
-        "start": "ðŸ‘‹ Welcome to QR Buddy!\n\nðŸ“· Send a QR image or screenshot to scan it. I can detect multiple codes.\nâœ¨ Send text or a link and Iâ€™ll create a QR image.\n\nImages are processed temporarily. Recent results stay in memory only and may disappear when the service restarts.",
-        "menu": "ðŸ“· Scan QR", "create": "âœ¨ Create QR", "history": "ðŸ•˜ History", "settings": "âš™ï¸ Settings",
+        "start": "👋 Welcome to QR Buddy!\n\n📷 Send a QR image or screenshot to scan it. I can detect multiple codes.\n✨ Send text or a link and I’ll create a QR image.\n\nImages are processed temporarily. Recent results stay in memory only and may disappear when the service restarts.",
+        "menu": "📷 Scan QR", "create": "✨ Create QR", "history": "🕘 History", "settings": "⚙️ Settings",
         "choose": "Send me a QR image to scan, or send text/link to create a QR.", "none": "No QR code found. Try a clearer image.",
-        "found": "ðŸ”Ž Found {n} QR code(s):", "text": "Text", "link": "Link", "caution": "âš ï¸ This link has unusual features ({why}). Check the full domain before opening. This check is only a heuristic.",
-        "okay": "No obvious warning found, but this does not prove the site is safe.", "clear": "Recent scan history cleared.", "empty": "No recent scans.", "history": "ðŸ•˜ Your recent scans (kept in memory only):\n", "lang": "Language set to English.", "help": "Send an image to scan, or send plain text/a link to generate a QR. Commands: /start /lang /history /clear /help",
+        "found": "🔎 Found {n} QR code(s):", "text": "Text", "link": "Link", "caution": "⚠️ This link has unusual features ({why}). Check the full domain before opening. This check is only a heuristic.",
+        "okay": "No obvious warning found, but this does not prove the site is safe.", "clear": "Recent scan history cleared.", "empty": "No recent scans.", "history": "🕘 Your recent scans (kept in memory only):\n", "lang": "Language set to English.", "help": "Send an image to scan, or send plain text/a link to generate a QR. Commands: /start /lang /history /clear /help",
     },
     "km": {
-        "start": "ðŸ‘‹ ážŸáž¼áž˜ážŸáŸ’ážœáž¶áž‚áž˜áž“áŸáž˜áž€áž€áž¶áž“áŸ‹ QR Buddy!\n\nðŸ“· áž•áŸ’áž‰áž¾ážšáž¼áž” QR áž¬ Screenshot ážŠáž¾áž˜áŸ’áž”áž¸ážŸáŸ’áž€áŸáž“áŸ” áž¢áž¶áž…ážšáž€ QR áž…áŸ’ážšáž¾áž“áž€áŸ’áž“áž»áž„ážšáž¼áž”ážáŸ‚áž˜áž½áž™áŸ”\nâœ¨ áž•áŸ’áž‰áž¾áž¢ážáŸ’ážáž”áž‘ áž¬ážáŸ†ážŽ ážŠáž¾áž˜áŸ’áž”áž¸áž”áž„áŸ’áž€áž¾ážážšáž¼áž” QRáŸ”\n\nážšáž¼áž”áž—áž¶áž–ážŠáŸ†ážŽáž¾ážšáž€áž¶ážšáž”ážŽáŸ’ážáŸ„áŸ‡áž¢áž¶ážŸáž“áŸ’áž“áŸ” áž›áž‘áŸ’áž’áž•áž›ážáŸ’áž˜áž¸áŸ—ážšáž€áŸ’ážŸáž¶áž‘áž»áž€ážáŸ‚áž€áŸ’áž“áž»áž„ memory áž áž¾áž™áž¢áž¶áž…áž”áž¶ážáŸ‹áž–áŸáž› service restartáŸ”",
-        "menu": "ðŸ“· ážŸáŸ’áž€áŸáž“ QR", "create": "âœ¨ áž”áž„áŸ’áž€áž¾áž QR", "history": "ðŸ•˜ áž”áŸ’ážšážœážáŸ’ážáž·", "settings": "âš™ï¸ áž€áž¶ážšáž€áŸ†ážŽážáŸ‹",
-        "choose": "áž•áŸ’áž‰áž¾ážšáž¼áž” QR ážŠáž¾áž˜áŸ’áž”áž¸ážŸáŸ’áž€áŸáž“ áž¬áž•áŸ’áž‰áž¾áž¢ážáŸ’ážáž”áž‘/ážáŸ†ážŽ ážŠáž¾áž˜áŸ’áž”áž¸áž”áž„áŸ’áž€áž¾áž QRáŸ”", "none": "ážšáž€áž˜áž·áž“ážƒáž¾áž‰ QR áž‘áŸáŸ” ážŸáž¶áž€áž›áŸ’áž”áž„ážšáž¼áž”ážŠáŸ‚áž›áž…áŸ’áž”áž¶ážŸáŸ‹áž‡áž¶áž„áž“áŸáŸ‡áŸ”",
-        "found": "ðŸ”Ž ážšáž€ážƒáž¾áž‰ QR áž…áŸ†áž“áž½áž“ {n}áŸ–", "text": "áž¢ážáŸ’ážáž”áž‘", "link": "ážáŸ†ážŽ", "caution": "âš ï¸ ážáŸ†ážŽáž“áŸáŸ‡áž˜áž¶áž“áž›áž€áŸ’ážážŽáŸˆáž˜áž·áž“áž’áž˜áŸ’áž˜ážáž¶ ({why})áŸ” ážŸáž¼áž˜áž–áž·áž“áž·ážáŸ’áž™ domain áž–áŸáž‰áž˜áž»áž“áž”áž¾áž€áŸ” áž€áž¶ážšážáŸ’ážšáž½ážáž–áž·áž“áž·ážáŸ’áž™áž“áŸáŸ‡áž‚áŸ’ážšáž¶áž“áŸ‹ážáŸ‚áž‡áž¶áž€áž¶ážšáž”áŸ‰áž¶áž“áŸ‹ážŸáŸ’áž˜áž¶áž“áŸ”",
-        "okay": "áž˜áž·áž“ážƒáž¾áž‰ážŸáž‰áŸ’áž‰áž¶áž–áŸ’ážšáž˜áž¶áž“áž…áŸ’áž”áž¶ážŸáŸ‹áž‘áŸ áž”áŸ‰áž»áž“áŸ’ážáŸ‚áž˜áž·áž“áž¢áž¶áž…áž’áž¶áž“áž¶ážáž¶áž‚áŸáž áž‘áŸ†áž–áŸážšáž˜áž¶áž“ážŸáž»ážœážáŸ’ážáž·áž—áž¶áž–áž‘áŸáŸ”", "clear": "áž”áž¶áž“áž›áž»áž”áž”áŸ’ážšážœážáŸ’ážáž·ážŸáŸ’áž€áŸáž“ážáŸ’áž˜áž¸áŸ—áŸ”", "empty": "áž˜áž·áž“áž‘áž¶áž“áŸ‹áž˜áž¶áž“áž”áŸ’ážšážœážáŸ’ážáž·ážŸáŸ’áž€áŸáž“áž‘áŸáŸ”", "history": "ðŸ•˜ áž”áŸ’ážšážœážáŸ’ážáž·ážŸáŸ’áž€áŸáž“ážáŸ’áž˜áž¸áŸ— (ážšáž€áŸ’ážŸáž¶áž‘áž»áž€áž€áŸ’áž“áž»áž„ memory áž”áŸ‰áž»ážŽáŸ’ážŽáŸ„áŸ‡)áŸ–\n", "lang": "áž”áž¶áž“áž€áŸ†ážŽážáŸ‹áž—áž¶ážŸáž¶ážáŸ’áž˜áŸ‚ážšáŸ”", "help": "áž•áŸ’áž‰áž¾ážšáž¼áž”ážŠáž¾áž˜áŸ’áž”áž¸ážŸáŸ’áž€áŸáž“ áž¬áž•áŸ’áž‰áž¾áž¢ážáŸ’ážáž”áž‘/ážáŸ†ážŽážŠáž¾áž˜áŸ’áž”áž¸áž”áž„áŸ’áž€áž¾áž QRáŸ” áž–áž¶áž€áŸ’áž™áž”áž‰áŸ’áž‡áž¶áŸ– /start /lang /history /clear /help",
+        "start": "👋 សូមស្វាគមន៍មកកាន់ QR Buddy!\n\n📷 ផ្ញើរូប QR ឬ Screenshot ដើម្បីស្កេន។ អាចរក QR ច្រើនក្នុងរូបតែមួយ។\n✨ ផ្ញើអត្ថបទ ឬតំណ ដើម្បីបង្កើតរូប QR។\n\nរូបភាពដំណើរការបណ្តោះអាសន្ន។ លទ្ធផលថ្មីៗរក្សាទុកតែក្នុង memory ហើយអាចបាត់ពេល service restart។",
+        "menu": "📷 ស្កេន QR", "create": "✨ បង្កើត QR", "history": "🕘 ប្រវត្តិ", "settings": "⚙️ ការកំណត់",
+        "choose": "ផ្ញើរូប QR ដើម្បីស្កេន ឬផ្ញើអត្ថបទ/តំណ ដើម្បីបង្កើត QR។", "none": "រកមិនឃើញ QR ទេ។ សាកល្បងរូបដែលច្បាស់ជាងនេះ។",
+        "found": "🔎 រកឃើញ QR ចំនួន {n}៖", "text": "អត្ថបទ", "link": "តំណ", "caution": "⚠️ តំណនេះមានលក្ខណៈមិនធម្មតា ({why})។ សូមពិនិត្យ domain ពេញមុនបើក។ ការត្រួតពិនិត្យនេះគ្រាន់តែជាការប៉ាន់ស្មាន។",
+        "okay": "មិនឃើញសញ្ញាព្រមានច្បាស់ទេ ប៉ុន្តែមិនអាចធានាថាគេហទំព័រមានសុវត្ថិភាពទេ។", "clear": "បានលុបប្រវត្តិស្កេនថ្មីៗ។", "empty": "មិនទាន់មានប្រវត្តិស្កេនទេ។", "history": "🕘 ប្រវត្តិស្កេនថ្មីៗ (រក្សាទុកក្នុង memory ប៉ុណ្ណោះ)៖\n", "lang": "បានកំណត់ភាសាខ្មែរ។", "help": "ផ្ញើរូបដើម្បីស្កេន ឬផ្ញើអត្ថបទ/តំណដើម្បីបង្កើត QR។ ពាក្យបញ្ជា៖ /start /lang /history /clear /help",
     },
 }
 
@@ -111,7 +110,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid=update.effective_user.id
-    msg=await update.message.reply_text("â³ Scanningâ€¦")
+    msg=await update.message.reply_text("⏳ Scanning…")
     try:
         attachment=update.message.effective_attachment
         tgfile=await (attachment[-1] if isinstance(attachment,(list,tuple)) else attachment).get_file()
@@ -123,7 +122,7 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         out=[tr(uid,"found").format(n=len(found))]
         for i,value in enumerate(found,1):
             is_link=value.lower().startswith(("http://","https://"))
-            out.append(f"\n{i}. {'ðŸ”— '+tr(uid,'link') if is_link else 'ðŸ“ '+tr(uid,'text')}\n{value}")
+            out.append(f"\n{i}. {'🔗 '+tr(uid,'link') if is_link else '📝 '+tr(uid,'text')}\n{value}")
             RECENT[uid].appendleft(value)
             if is_link:
                 reasons=suspicious(value)
@@ -131,7 +130,7 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text("".join(out), reply_markup=keyboard(uid), disable_web_page_preview=True)
     except Exception as exc:
         log.exception("Image scan failed")
-        await msg.edit_text("âš ï¸ Could not scan this image. Try a JPG or PNG with a clear QR code.")
+        await msg.edit_text("⚠️ Could not scan this image. Try a JPG or PNG with a clear QR code.")
 
 async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid=update.effective_user.id; text=update.message.text.strip()
@@ -139,10 +138,10 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text in buttons:
         if text==tr(uid,"history"): return await history(update,context)
         return await choose(update,context)
-    try: await update.message.reply_photo(photo=make_qr(text), caption="âœ¨ QR code Â· " + text[:800])
+    try: await update.message.reply_photo(photo=make_qr(text), caption="✨ QR code · " + text[:800])
     except Exception:
         log.exception("QR generation failed")
-        await update.message.reply_text("âš ï¸ Could not create that QR. Try shorter text.")
+        await update.message.reply_text("⚠️ Could not create that QR. Try shorter text.")
 
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -154,29 +153,14 @@ class HealthHandler(BaseHTTPRequestHandler):
 
 def serve_health(): HTTPServer(("0.0.0.0",PORT),HealthHandler).serve_forever()
 
-async def run_bot():
-    """Explicit asyncio lifecycle works on modern Python versions too."""
+def main():
+    threading.Thread(target=serve_health,daemon=True).start()
     app=Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start",start)); app.add_handler(CommandHandler("help",help_cmd))
     app.add_handler(CommandHandler("lang",setlang)); app.add_handler(CommandHandler("clear",clear)); app.add_handler(CommandHandler("history",history))
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE,photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,text_message))
-    await app.initialize()
-    if app.updater is None:
-        raise RuntimeError("Telegram updater is unavailable")
-    await app.updater.start_polling(drop_pending_updates=True)
-    await app.start()
-    log.info("Telegram polling started")
-    try:
-        await asyncio.Event().wait()
-    finally:
-        await app.updater.stop()
-        await app.stop()
-        await app.shutdown()
-
-def main():
-    threading.Thread(target=serve_health,daemon=True).start()
     log.info("Starting QR Buddy bot and health server on port %s",PORT)
-    asyncio.run(run_bot())
+    app.run_polling(drop_pending_updates=True)
 
 if __name__=="__main__": main()
