@@ -61,7 +61,7 @@ Free Render service filesystems are ephemeral. This project intentionally keeps 
 ## Telegram Mini App setup
 
 - The Mini App URL must use HTTPS and be publicly accessible.
-- When `MINI_APP_URL` is set, the Telegram chat menu button is changed from the command list to **QR Code Scanner**, which opens the Mini App directly. Slash commands remain available by typing `/`.
+- When `MINI_APP_URL` is set, the Telegram chat menu button opens the regular Mini App view. The `/start` and `/miniapp` messages also include a Main Mini App deep link (`https://t.me/MyQRCodeScannerBot?startapp`) so users can use BotFather Fullsize mode. Slash commands remain available by typing `/`.
 - The app also works as a normal website; Telegram WebApp APIs are optional enhancements.
 
 ## Commands

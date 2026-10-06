@@ -171,9 +171,12 @@ def keyboard(uid):
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
 def mini_button():
-    if MINI_APP_URL.startswith("https://"):
-        return InlineKeyboardMarkup([[InlineKeyboardButton("Open QR Code Scanner", web_app=WebAppInfo(url=MINI_APP_URL))]])
-    return None
+    # Open the configured Main Mini App, which uses BotFather's Fullsize mode.
+    # A web_app inline button launches a regular Mini App view instead.
+    return InlineKeyboardMarkup([[InlineKeyboardButton(
+        "Open QR Code Scanner",
+        url="https://t.me/MyQRCodeScannerBot?startapp",
+    )]])
 
 async def configure_user_menu(bot, uid):
     """Make this user's Telegram chat menu open the Mini App directly."""
