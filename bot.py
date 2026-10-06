@@ -175,8 +175,27 @@ def mini_button():
         return InlineKeyboardMarkup([[InlineKeyboardButton("Open QR Code Scanner", web_app=WebAppInfo(url=MINI_APP_URL))]])
     return None
 
+async def configure_user_menu(bot, uid):
+    """Make this user's Telegram chat menu open the Mini App directly."""
+    if not MINI_APP_URL.startswith("https://"):
+        log.warning("MINI_APP_URL is missing or is not HTTPS; Telegram menu remains the command list")
+        return False
+    try:
+        await bot.set_chat_menu_button(
+            chat_id=uid,
+            menu_button=MenuButtonWebApp(
+                text="QR Code Scanner",
+                web_app=WebAppInfo(url=MINI_APP_URL),
+            ),
+        )
+        return True
+    except Exception:
+        log.exception("Could not set the QR Code Scanner menu button for chat %s", uid)
+        return False
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid=update.effective_user.id
+    await configure_user_menu(context.bot, uid)
     await update.message.reply_text(tr(uid,"start"), reply_markup=keyboard(uid))
     if MINI_APP_URL.startswith("https://"):
         await update.message.reply_text("Open the QR mini app:", reply_markup=mini_button())
@@ -228,6 +247,7 @@ async def size_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def miniapp_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if MINI_APP_URL.startswith("https://"):
+        await configure_user_menu(context.bot, update.effective_user.id)
         await update.message.reply_text("Open QR Code Scanner:", reply_markup=mini_button())
     else:
         await update.message.reply_text("Mini App is not configured yet. Set MINI_APP_URL in Render.")
@@ -256,12 +276,7 @@ async def set_commands(app: Application):
     # Replace Telegram's default "Menu" command-list button with a direct
     # Mini App launcher. Slash commands remain available to users.
     if MINI_APP_URL.startswith("https://"):
-        await app.bot.set_chat_menu_button(
-            menu_button=MenuButtonWebApp(
-                text="QR Code Scanner",
-                web_app=WebAppInfo(url=MINI_APP_URL),
-            )
-        )
+        await configure_user_menu(app.bot, None)
 
 async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid=update.effective_user.id
