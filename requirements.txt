@@ -1,0 +1,4 @@
+python-telegram-bot==21.10
+qrcode[pil]==8.2
+opencv-python-headless==4.11.0.86
+numpy==2.2.6
