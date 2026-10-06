@@ -4,6 +4,8 @@ A bilingual (Khmer/English) QR scanner and QR creator. The Mini App scans images
 
 ## Features
 
+- Mini App screen display defaults to expanded/full screen; users can choose Normal screen and press Save to remember their preference on that device. Telegram client support determines whether native fullscreen is available.
+
 - Scan QR codes from photos, screenshots, and image files; attempt multi-code detection with ZXing and enhanced OpenCV fallbacks for colorful, inverted, or logo-style codes.
 - Use the Mini App quick menu to jump to Scan, Create, Convert, History, and language controls.
 - Use the **Convert** option for either direction: turn a link into a QR image, or scan a QR image to read its link/text.
