@@ -19,6 +19,9 @@ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandl
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("qr_buddy")
+# httpx logs full Telegram API request URLs at INFO, which can expose the bot token.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 MINI_APP_URL = os.getenv("MINI_APP_URL", "")
 PORT = int(os.getenv("PORT", "10000"))
@@ -35,6 +38,8 @@ TEXT = {
         "choose": "Send me a QR image to scan, or send text/link to create a QR.", "none": "No QR code found. Try a clearer image.",
         "found": "\U0001f50e Found {n} QR code(s):", "text": "Text", "link": "Link", "caution": "\u26a0\ufe0f This link has unusual features ({why}). Check the full domain before opening. This check is only a heuristic.",
         "okay": "No obvious warning found, but this does not prove the site is safe.", "clear": "Recent scan history cleared.", "empty": "No recent scans.", "history": "\U0001f558 Your recent scans (kept in memory only):\n", "lang": "Language set to English.", "help": "Send an image to scan, or send plain text/a link to generate a QR. Commands: /start /lang /history /clear /help",
+        "too_large": "This image is too large to scan here. Send a smaller image, or use the Mini App to scan it on your device.",
+        "no_detail": "Tip: send the original QR image as a File/Document to preserve its quality. Telegram compresses photos.",
     },
     "km": {
         "start": "\U0001f44b \u179f\u17bc\u1798\u179f\u17d2\u179c\u17b6\u1782\u1798\u1793\u17cd\u1798\u1780\u1780\u17b6\u1793\u17cb QR Buddy!\n\n\U0001f4f7 \u1795\u17d2\u1789\u17be\u179a\u17bc\u1794 QR \u17ac Screenshot \u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793\u17d4 \u17a2\u17b6\u1785\u179a\u1780 QR \u1785\u17d2\u179a\u17be\u1793\u1780\u17d2\u1793\u17bb\u1784\u179a\u17bc\u1794\u178f\u17c2\u1798\u17bd\u1799\u17d4\n\u2728 \u1795\u17d2\u1789\u17be\u17a2\u178f\u17d2\u1790\u1794\u1791 \u17ac\u178f\u17c6\u178e \u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u1784\u17d2\u1780\u17be\u178f\u179a\u17bc\u1794 QR\u17d4\n\n\u179a\u17bc\u1794\u1797\u17b6\u1796\u178a\u17c6\u178e\u17be\u179a\u1780\u17b6\u179a\u1794\u178e\u17d2\u178f\u17c4\u17c7\u17a2\u17b6\u179f\u1793\u17d2\u1793\u17d4 \u179b\u1791\u17d2\u1792\u1795\u179b\u1790\u17d2\u1798\u17b8\u17d7\u179a\u1780\u17d2\u179f\u17b6\u1791\u17bb\u1780\u178f\u17c2\u1780\u17d2\u1793\u17bb\u1784 memory \u17a0\u17be\u1799\u17a2\u17b6\u1785\u1794\u17b6\u178f\u17cb\u1796\u17c1\u179b service restart\u17d4",
@@ -45,6 +50,8 @@ TEXT = {
         "choose": "\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794 QR \u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793 \u17ac\u1795\u17d2\u1789\u17be\u17a2\u178f\u17d2\u1790\u1794\u1791/\u178f\u17c6\u178e \u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u1784\u17d2\u1780\u17be\u178f QR\u17d4", "none": "\u179a\u1780\u1798\u17b7\u1793\u1783\u17be\u1789 QR \u1791\u17c1\u17d4 \u179f\u17b6\u1780\u179b\u17d2\u1794\u1784\u179a\u17bc\u1794\u178a\u17c2\u179b\u1785\u17d2\u1794\u17b6\u179f\u17cb\u1787\u17b6\u1784\u1793\u17c1\u17c7\u17d4",
         "found": "\U0001f50e \u179a\u1780\u1783\u17be\u1789 QR \u1785\u17c6\u1793\u17bd\u1793 {n}\u17d6", "text": "\u17a2\u178f\u17d2\u1790\u1794\u1791", "link": "\u178f\u17c6\u178e", "caution": "\u26a0\ufe0f \u178f\u17c6\u178e\u1793\u17c1\u17c7\u1798\u17b6\u1793\u179b\u1780\u17d2\u1781\u178e\u17c8\u1798\u17b7\u1793\u1792\u1798\u17d2\u1798\u178f\u17b6 ({why})\u17d4 \u179f\u17bc\u1798\u1796\u17b7\u1793\u17b7\u178f\u17d2\u1799 domain \u1796\u17c1\u1789\u1798\u17bb\u1793\u1794\u17be\u1780\u17d4 \u1780\u17b6\u179a\u178f\u17d2\u179a\u17bd\u178f\u1796\u17b7\u1793\u17b7\u178f\u17d2\u1799\u1793\u17c1\u17c7\u1782\u17d2\u179a\u17b6\u1793\u17cb\u178f\u17c2\u1787\u17b6\u1780\u17b6\u179a\u1794\u17c9\u17b6\u1793\u17cb\u179f\u17d2\u1798\u17b6\u1793\u17d4",
         "okay": "\u1798\u17b7\u1793\u1783\u17be\u1789\u179f\u1789\u17d2\u1789\u17b6\u1796\u17d2\u179a\u1798\u17b6\u1793\u1785\u17d2\u1794\u17b6\u179f\u17cb\u1791\u17c1 \u1794\u17c9\u17bb\u1793\u17d2\u178f\u17c2\u1798\u17b7\u1793\u17a2\u17b6\u1785\u1792\u17b6\u1793\u17b6\u1790\u17b6\u1782\u17c1\u17a0\u1791\u17c6\u1796\u17d0\u179a\u1798\u17b6\u1793\u179f\u17bb\u179c\u178f\u17d2\u1790\u17b7\u1797\u17b6\u1796\u1791\u17c1\u17d4", "clear": "\u1794\u17b6\u1793\u179b\u17bb\u1794\u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1790\u17d2\u1798\u17b8\u17d7\u17d4", "empty": "\u1798\u17b7\u1793\u1791\u17b6\u1793\u17cb\u1798\u17b6\u1793\u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1791\u17c1\u17d4", "history": "\U0001f558 \u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1790\u17d2\u1798\u17b8\u17d7 (\u179a\u1780\u17d2\u179f\u17b6\u1791\u17bb\u1780\u1780\u17d2\u1793\u17bb\u1784 memory \u1794\u17c9\u17bb\u178e\u17d2\u178e\u17c4\u17c7)\u17d6\n", "lang": "\u1794\u17b6\u1793\u1780\u17c6\u178e\u178f\u17cb\u1797\u17b6\u179f\u17b6\u1781\u17d2\u1798\u17c2\u179a\u17d4", "help": "\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794\u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793 \u17ac\u1795\u17d2\u1789\u17be\u17a2\u178f\u17d2\u1790\u1794\u1791/\u178f\u17c6\u178e\u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u1784\u17d2\u1780\u17be\u178f QR\u17d4 \u1796\u17b6\u1780\u17d2\u1799\u1794\u1789\u17d2\u1787\u17b6\u17d6 /start /lang /history /clear /help",
+        "too_large": "\u179a\u17bc\u1794\u1792\u17c6\u1796\u17c1\u1780\u179f\u1798\u17d2\u179a\u17b6\u1794\u17cb\u179f\u17d2\u1780\u17c1\u1793\u1793\u17c5\u1791\u17b8\u1793\u17c1\u17c7\u17d4 \u179f\u17bc\u1798\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794\u178f\u17bc\u1785\u1787\u17b6\u1784\u1793\u17c1\u17c7 \u17ac\u1794\u17be\u1780 Mini App \u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793\u1793\u17c5\u179b\u17be\u17a7\u1794\u1780\u179a\u178e\u17cd\u179a\u1794\u179f\u17cb\u17a2\u17d2\u1793\u1780\u17d4",
+        "no_detail": "\u1787\u17bd\u1799\u17b1\u17d2\u1799\u179f\u17d2\u1780\u17c1\u1793\u1787\u17b6\u1780\u17cb\u179b\u17b6\u1780\u17d4 \u179f\u17bc\u1798\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794 QR \u1787\u17b6 File/Document \u178a\u17be\u1798\u17d2\u1794\u17b8\u179a\u1780\u17d2\u179f\u17b6\u1782\u17bb\u178e\u1797\u17b6\u1796\u178a\u17be\u1798\u17d4 Telegram \u1794\u1784\u17d2\u179a\u17bd\u1789\u1782\u17bb\u178e\u1797\u17b6\u1796\u179a\u17bc\u1794\u1796\u17c1\u179b\u1795\u17d2\u1789\u17be\u1787\u17b6 Photo\u17d4",
     },
 }
 
@@ -189,10 +196,13 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         attachment=update.message.effective_attachment
         tgfile=await (attachment[-1] if isinstance(attachment,(list,tuple)) else attachment).get_file()
         data=bytes(await tgfile.download_as_bytearray())
-        found=decode_image(data)
+        if len(data) > 15 * 1024 * 1024:
+            await msg.edit_text(tr(uid,"too_large"), reply_markup=keyboard(uid)); return
+        # Keep CPU-heavy decoding off the Telegram polling event loop.
+        found=await asyncio.to_thread(decode_image,data)
         del data
         if not found:
-            await msg.edit_text(tr(uid,"none")); return
+            await msg.edit_text(tr(uid,"none")+"\n\n"+tr(uid,"no_detail"), reply_markup=keyboard(uid)); return
         out=[tr(uid,"found").format(n=len(found))]
         for i,value in enumerate(found,1):
             is_link=value.lower().startswith(("http://","https://"))
