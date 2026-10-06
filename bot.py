@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 import cv2
 import numpy as np
+import zxingcpp
 import qrcode
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
@@ -65,41 +66,78 @@ def suspicious(value):
         return ["invalid link"]
 
 def decode_image(data):
-    image = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-    if image is None: return []
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    candidates = [image, gray, cv2.equalizeHist(gray)]
-    _, otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    candidates.extend([otsu, cv2.bitwise_not(otsu)])
-    adaptive = cv2.adaptiveThreshold(
-        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 5
-    )
-    candidates.extend([adaptive, cv2.bitwise_not(adaptive)])
+    """Decode QR symbols using ZXing first and enhanced OpenCV fallbacks.
 
-    # Small QR images and screenshots often need enlargement before detection.
-    if max(gray.shape[:2]) < 1400:
-        candidates.extend(
-            cv2.resize(candidate, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-            for candidate in list(candidates)
-        )
+    ZXing handles stylized/color/inverted and multi-symbol QR images better than
+    OpenCV alone. Inputs are capped to avoid excessive memory on giant uploads.
+    """
+    image = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+    if image is None:
+        return []
+    h, w = image.shape[:2]
+    scale = min(1.0, 2400 / max(h, w))
+    if scale < 1:
+        image = cv2.resize(image, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+
+    decoded = []
+    seen = set()
+
+    def add(values):
+        for value in values:
+            value = (value or "").strip()
+            if value and value not in seen:
+                seen.add(value)
+                decoded.append(value)
+
+    # Prefer a dedicated QR decoder. Also try luminance and inverted grayscale
+    # because colorful logos and dark-background QR designs can confuse binarizing.
+    try:
+        add(r.text for r in zxingcpp.read_barcodes(image, formats=zxingcpp.BarcodeFormat.QRCode))
+    except Exception:
+        log.exception("ZXing QR decode failed")
+    if decoded:
+        return decoded
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    variants = [image, gray, cv2.equalizeHist(gray), cv2.bitwise_not(gray)]
+    # Improve low contrast, grayscale and tiny QR images.
+    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8)).apply(gray)
+    variants.extend([clahe, cv2.bitwise_not(clahe)])
+    for src in (gray, clahe):
+        _, otsu = cv2.threshold(src, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        variants.extend([otsu, cv2.bitwise_not(otsu)])
+        adaptive = cv2.adaptiveThreshold(src, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                         cv2.THRESH_BINARY, 31, 5)
+        variants.extend([adaptive, cv2.bitwise_not(adaptive)])
+    if max(gray.shape[:2]) < 1800:
+        variants.extend(cv2.resize(v, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+                        for v in list(variants))
 
     detector = cv2.QRCodeDetector()
-    for candidate in candidates:
+    for candidate in variants:
+        try:
+            results = zxingcpp.read_barcodes(candidate, formats=zxingcpp.BarcodeFormat.QRCode)
+            add(r.text for r in results)
+            if decoded:
+                return decoded
+        except Exception:
+            pass
         try:
             ok, values, _, _ = detector.detectAndDecodeMulti(candidate)
             if ok:
-                decoded = list(dict.fromkeys(value for value in values if value))
-                if decoded:
-                    return decoded
+                add(values)
         except Exception:
             pass
+        if decoded:
+            return decoded
         try:
             value, _, _ = detector.detectAndDecode(candidate)
-            if value:
-                return [value]
+            add([value])
         except Exception:
             pass
-    return []
+        if decoded:
+            return decoded
+    return decoded
 
 def make_qr(value):
     img = qrcode.make(value)

@@ -11,8 +11,6 @@ services:
         sync: false
       - key: MINI_APP_URL
         sync: false
-      - key: PYTHON_VERSION
-        value: 3.12.8
   - type: web
     name: qr-buddy-miniapp
     runtime: static

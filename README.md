@@ -4,7 +4,8 @@ A bilingual (Khmer/English) QR scanner and QR creator. The Mini App scans images
 
 ## Features
 
-- Scan QR codes from photos, screenshots, and image files; attempt multi-code detection.
+- Scan QR codes from photos, screenshots, and image files; attempt multi-code detection with ZXing and enhanced OpenCV fallbacks for colorful, inverted, or logo-style codes.
+- Use the Mini App quick menu to jump to Scan, Create, Convert, History, and language controls.
 - Use the **Convert** option for either direction: turn a link into a QR image, or scan a QR image to read its link/text.
 - Create QR images for any text or URL in the bot. The Mini App additionally builds URL, text, phone, Wi‑Fi, and location QR payloads.
 - Heuristic warnings for suspicious-looking links. Link checks are not a security guarantee, and links are never opened automatically.
