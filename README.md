@@ -4,7 +4,7 @@ A bilingual (Khmer/English) QR scanner and QR creator. The Mini App scans images
 
 ## Features
 
-- Mini App screen display defaults to fullscreen. A saved Normal Telegram view preference is stored per device; the screen choice changes only after pressing Save. Native fullscreen requires Telegram Bot API 8.0 or newer, with expanded-height fallback on older clients.
+- The Mini App requests fullscreen on launch by default. A saved Normal Telegram view preference is stored per device and takes effect after pressing Save. Fullscreen behavior depends on Telegram client support and version.
 
 - Scan QR codes from photos, screenshots, and image files; attempt multi-code detection with ZXing and enhanced OpenCV fallbacks for colorful, inverted, or logo-style codes.
 - Use the Mini App quick menu to jump to Scan, Create, Convert, History, and language controls.
