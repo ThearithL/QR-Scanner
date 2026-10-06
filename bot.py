@@ -1,9 +1,11 @@
 """QR Buddy Telegram bot. Stores scan history in memory only; images are transient."""
 import io
+import asyncio
 import logging
 import os
 import re
 import threading
+from pathlib import Path
 from collections import defaultdict, deque
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
@@ -24,18 +26,24 @@ LANG = defaultdict(lambda: "en")
 
 TEXT = {
     "en": {
-        "start": "👋 Welcome to QR Buddy!\n\n📷 Send a QR image or screenshot to scan it. I can detect multiple codes.\n✨ Send text or a link and I’ll create a QR image.\n\nImages are processed temporarily. Recent results stay in memory only and may disappear when the service restarts.",
-        "menu": "📷 Scan QR", "create": "✨ Create QR", "history": "🕘 History", "settings": "⚙️ Settings",
+        "start": "\U0001f44b Welcome to QR Buddy!\n\n\U0001f4f7 Send a QR image or screenshot to scan it. I can detect multiple codes.\n\u2728 Send text or a link and I\u2019ll create a QR image.\n\nImages are processed temporarily. Recent results stay in memory only and may disappear when the service restarts.",
+        "menu": "\U0001f4f7 Scan QR", "create": "\u2728 Create QR", "history": "\U0001f558 History", "settings": "\u2699\ufe0f Settings", "language": "\U0001f310 Change language",
+        "convert": "\U0001f504 Convert link / QR",
+        "settings_msg": "\U0001f310 Tap Change language below or send /lang to switch between English and Khmer.",
+        "convert_msg": "\U0001f517 Link to QR: send me a link and I will return a QR image.\n\U0001f4f7 QR to link: send me a QR photo or screenshot and I will read its contents.",
         "choose": "Send me a QR image to scan, or send text/link to create a QR.", "none": "No QR code found. Try a clearer image.",
-        "found": "🔎 Found {n} QR code(s):", "text": "Text", "link": "Link", "caution": "⚠️ This link has unusual features ({why}). Check the full domain before opening. This check is only a heuristic.",
-        "okay": "No obvious warning found, but this does not prove the site is safe.", "clear": "Recent scan history cleared.", "empty": "No recent scans.", "history": "🕘 Your recent scans (kept in memory only):\n", "lang": "Language set to English.", "help": "Send an image to scan, or send plain text/a link to generate a QR. Commands: /start /lang /history /clear /help",
+        "found": "\U0001f50e Found {n} QR code(s):", "text": "Text", "link": "Link", "caution": "\u26a0\ufe0f This link has unusual features ({why}). Check the full domain before opening. This check is only a heuristic.",
+        "okay": "No obvious warning found, but this does not prove the site is safe.", "clear": "Recent scan history cleared.", "empty": "No recent scans.", "history": "\U0001f558 Your recent scans (kept in memory only):\n", "lang": "Language set to English.", "help": "Send an image to scan, or send plain text/a link to generate a QR. Commands: /start /lang /history /clear /help",
     },
     "km": {
-        "start": "👋 សូមស្វាគមន៍មកកាន់ QR Buddy!\n\n📷 ផ្ញើរូប QR ឬ Screenshot ដើម្បីស្កេន។ អាចរក QR ច្រើនក្នុងរូបតែមួយ។\n✨ ផ្ញើអត្ថបទ ឬតំណ ដើម្បីបង្កើតរូប QR។\n\nរូបភាពដំណើរការបណ្តោះអាសន្ន។ លទ្ធផលថ្មីៗរក្សាទុកតែក្នុង memory ហើយអាចបាត់ពេល service restart។",
-        "menu": "📷 ស្កេន QR", "create": "✨ បង្កើត QR", "history": "🕘 ប្រវត្តិ", "settings": "⚙️ ការកំណត់",
-        "choose": "ផ្ញើរូប QR ដើម្បីស្កេន ឬផ្ញើអត្ថបទ/តំណ ដើម្បីបង្កើត QR។", "none": "រកមិនឃើញ QR ទេ។ សាកល្បងរូបដែលច្បាស់ជាងនេះ។",
-        "found": "🔎 រកឃើញ QR ចំនួន {n}៖", "text": "អត្ថបទ", "link": "តំណ", "caution": "⚠️ តំណនេះមានលក្ខណៈមិនធម្មតា ({why})។ សូមពិនិត្យ domain ពេញមុនបើក។ ការត្រួតពិនិត្យនេះគ្រាន់តែជាការប៉ាន់ស្មាន។",
-        "okay": "មិនឃើញសញ្ញាព្រមានច្បាស់ទេ ប៉ុន្តែមិនអាចធានាថាគេហទំព័រមានសុវត្ថិភាពទេ។", "clear": "បានលុបប្រវត្តិស្កេនថ្មីៗ។", "empty": "មិនទាន់មានប្រវត្តិស្កេនទេ។", "history": "🕘 ប្រវត្តិស្កេនថ្មីៗ (រក្សាទុកក្នុង memory ប៉ុណ្ណោះ)៖\n", "lang": "បានកំណត់ភាសាខ្មែរ។", "help": "ផ្ញើរូបដើម្បីស្កេន ឬផ្ញើអត្ថបទ/តំណដើម្បីបង្កើត QR។ ពាក្យបញ្ជា៖ /start /lang /history /clear /help",
+        "start": "\U0001f44b \u179f\u17bc\u1798\u179f\u17d2\u179c\u17b6\u1782\u1798\u1793\u17cd\u1798\u1780\u1780\u17b6\u1793\u17cb QR Buddy!\n\n\U0001f4f7 \u1795\u17d2\u1789\u17be\u179a\u17bc\u1794 QR \u17ac Screenshot \u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793\u17d4 \u17a2\u17b6\u1785\u179a\u1780 QR \u1785\u17d2\u179a\u17be\u1793\u1780\u17d2\u1793\u17bb\u1784\u179a\u17bc\u1794\u178f\u17c2\u1798\u17bd\u1799\u17d4\n\u2728 \u1795\u17d2\u1789\u17be\u17a2\u178f\u17d2\u1790\u1794\u1791 \u17ac\u178f\u17c6\u178e \u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u1784\u17d2\u1780\u17be\u178f\u179a\u17bc\u1794 QR\u17d4\n\n\u179a\u17bc\u1794\u1797\u17b6\u1796\u178a\u17c6\u178e\u17be\u179a\u1780\u17b6\u179a\u1794\u178e\u17d2\u178f\u17c4\u17c7\u17a2\u17b6\u179f\u1793\u17d2\u1793\u17d4 \u179b\u1791\u17d2\u1792\u1795\u179b\u1790\u17d2\u1798\u17b8\u17d7\u179a\u1780\u17d2\u179f\u17b6\u1791\u17bb\u1780\u178f\u17c2\u1780\u17d2\u1793\u17bb\u1784 memory \u17a0\u17be\u1799\u17a2\u17b6\u1785\u1794\u17b6\u178f\u17cb\u1796\u17c1\u179b service restart\u17d4",
+        "menu": "\U0001f4f7 \u179f\u17d2\u1780\u17c1\u1793 QR", "create": "\u2728 \u1794\u1784\u17d2\u1780\u17be\u178f QR", "history": "\U0001f558 \u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7", "settings": "\u2699\ufe0f \u1780\u17b6\u179a\u1780\u17c6\u178e\u178f\u17cb", "language": "\U0001f310 \u1794\u17d2\u178f\u17bc\u179a\u1797\u17b6\u179f\u17b6",
+        "convert": "\U0001f504 \u1794\u17d2\u178f\u17bc\u179a\u178f\u17c6\u178e / QR",
+        "settings_msg": "\U0001f310 \u1785\u17bb\u1785 \xab\u1794\u17d2\u178f\u17bc\u179a\u1797\u17b6\u179f\u17b6\xbb \u1781\u17b6\u1784\u1780\u17d2\u179a\u17c4\u1798 \u17ac\u1795\u17d2\u1789\u17be /lang \u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u17d2\u178f\u17bc\u179a\u179a\u179c\u17b6\u1784\u1797\u17b6\u179f\u17b6\u1781\u17d2\u1798\u17c2\u179a \u1793\u17b7\u1784\u17a2\u1784\u17cb\u1782\u17d2\u179b\u17c1\u179f\u17d4",
+        "convert_msg": "\U0001f517 \u178f\u17c6\u178e \u1791\u17c5 QR: \u1795\u17d2\u1789\u17be\u178f\u17c6\u178e\u1798\u1780\u1794\u17bc\u178f \u178a\u17be\u1798\u17d2\u1794\u17b8\u1791\u1791\u17bd\u179b\u1794\u17b6\u1793\u179a\u17bc\u1794 QR\u17d4\n\U0001f4f7 QR \u1791\u17c5\u178f\u17c6\u178e: \u1795\u17d2\u1789\u17be\u179a\u17bc\u1794 QR \u17ac screenshot \u178a\u17be\u1798\u17d2\u1794\u17b8\u17b1\u17d2\u1799\u1794\u17bc\u178f\u17a2\u17b6\u1793\u1796\u17d0\u178f\u17cc\u1798\u17b6\u1793\u179a\u1794\u179f\u17cb\u179c\u17b6\u17d4",
+        "choose": "\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794 QR \u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793 \u17ac\u1795\u17d2\u1789\u17be\u17a2\u178f\u17d2\u1790\u1794\u1791/\u178f\u17c6\u178e \u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u1784\u17d2\u1780\u17be\u178f QR\u17d4", "none": "\u179a\u1780\u1798\u17b7\u1793\u1783\u17be\u1789 QR \u1791\u17c1\u17d4 \u179f\u17b6\u1780\u179b\u17d2\u1794\u1784\u179a\u17bc\u1794\u178a\u17c2\u179b\u1785\u17d2\u1794\u17b6\u179f\u17cb\u1787\u17b6\u1784\u1793\u17c1\u17c7\u17d4",
+        "found": "\U0001f50e \u179a\u1780\u1783\u17be\u1789 QR \u1785\u17c6\u1793\u17bd\u1793 {n}\u17d6", "text": "\u17a2\u178f\u17d2\u1790\u1794\u1791", "link": "\u178f\u17c6\u178e", "caution": "\u26a0\ufe0f \u178f\u17c6\u178e\u1793\u17c1\u17c7\u1798\u17b6\u1793\u179b\u1780\u17d2\u1781\u178e\u17c8\u1798\u17b7\u1793\u1792\u1798\u17d2\u1798\u178f\u17b6 ({why})\u17d4 \u179f\u17bc\u1798\u1796\u17b7\u1793\u17b7\u178f\u17d2\u1799 domain \u1796\u17c1\u1789\u1798\u17bb\u1793\u1794\u17be\u1780\u17d4 \u1780\u17b6\u179a\u178f\u17d2\u179a\u17bd\u178f\u1796\u17b7\u1793\u17b7\u178f\u17d2\u1799\u1793\u17c1\u17c7\u1782\u17d2\u179a\u17b6\u1793\u17cb\u178f\u17c2\u1787\u17b6\u1780\u17b6\u179a\u1794\u17c9\u17b6\u1793\u17cb\u179f\u17d2\u1798\u17b6\u1793\u17d4",
+        "okay": "\u1798\u17b7\u1793\u1783\u17be\u1789\u179f\u1789\u17d2\u1789\u17b6\u1796\u17d2\u179a\u1798\u17b6\u1793\u1785\u17d2\u1794\u17b6\u179f\u17cb\u1791\u17c1 \u1794\u17c9\u17bb\u1793\u17d2\u178f\u17c2\u1798\u17b7\u1793\u17a2\u17b6\u1785\u1792\u17b6\u1793\u17b6\u1790\u17b6\u1782\u17c1\u17a0\u1791\u17c6\u1796\u17d0\u179a\u1798\u17b6\u1793\u179f\u17bb\u179c\u178f\u17d2\u1790\u17b7\u1797\u17b6\u1796\u1791\u17c1\u17d4", "clear": "\u1794\u17b6\u1793\u179b\u17bb\u1794\u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1790\u17d2\u1798\u17b8\u17d7\u17d4", "empty": "\u1798\u17b7\u1793\u1791\u17b6\u1793\u17cb\u1798\u17b6\u1793\u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1791\u17c1\u17d4", "history": "\U0001f558 \u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1790\u17d2\u1798\u17b8\u17d7 (\u179a\u1780\u17d2\u179f\u17b6\u1791\u17bb\u1780\u1780\u17d2\u1793\u17bb\u1784 memory \u1794\u17c9\u17bb\u178e\u17d2\u178e\u17c4\u17c7)\u17d6\n", "lang": "\u1794\u17b6\u1793\u1780\u17c6\u178e\u178f\u17cb\u1797\u17b6\u179f\u17b6\u1781\u17d2\u1798\u17c2\u179a\u17d4", "help": "\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794\u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793 \u17ac\u1795\u17d2\u1789\u17be\u17a2\u178f\u17d2\u1790\u1794\u1791/\u178f\u17c6\u178e\u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u1784\u17d2\u1780\u17be\u178f QR\u17d4 \u1796\u17b6\u1780\u17d2\u1799\u1794\u1789\u17d2\u1787\u17b6\u17d6 /start /lang /history /clear /help",
     },
 }
 
@@ -59,13 +67,39 @@ def suspicious(value):
 def decode_image(data):
     image = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
     if image is None: return []
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    candidates = [image, gray, cv2.equalizeHist(gray)]
+    _, otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    candidates.extend([otsu, cv2.bitwise_not(otsu)])
+    adaptive = cv2.adaptiveThreshold(
+        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 5
+    )
+    candidates.extend([adaptive, cv2.bitwise_not(adaptive)])
+
+    # Small QR images and screenshots often need enlargement before detection.
+    if max(gray.shape[:2]) < 1400:
+        candidates.extend(
+            cv2.resize(candidate, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+            for candidate in list(candidates)
+        )
+
     detector = cv2.QRCodeDetector()
-    try:
-        ok, values, points, _ = detector.detectAndDecodeMulti(image)
-        if ok: return [x for x in values if x]
-    except Exception: pass
-    value, _, _ = detector.detectAndDecode(image)
-    return [value] if value else []
+    for candidate in candidates:
+        try:
+            ok, values, _, _ = detector.detectAndDecodeMulti(candidate)
+            if ok:
+                decoded = list(dict.fromkeys(value for value in values if value))
+                if decoded:
+                    return decoded
+        except Exception:
+            pass
+        try:
+            value, _, _ = detector.detectAndDecode(candidate)
+            if value:
+                return [value]
+        except Exception:
+            pass
+    return []
 
 def make_qr(value):
     img = qrcode.make(value)
@@ -74,7 +108,8 @@ def make_qr(value):
 
 def keyboard(uid):
     buttons = [[KeyboardButton(tr(uid, "menu")), KeyboardButton(tr(uid, "create"))],
-               [KeyboardButton(tr(uid, "history")), KeyboardButton(tr(uid, "settings"))]]
+               [KeyboardButton(tr(uid, "history")), KeyboardButton(tr(uid, "settings"))],
+               [KeyboardButton(tr(uid, "convert")), KeyboardButton(tr(uid, "language"))]]
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
 def mini_button():
@@ -89,7 +124,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Open the QR mini app:", reply_markup=mini_button())
 
 async def choose(update, context):
-    await update.message.reply_text(tr(update.effective_user.id,"choose"), reply_markup=keyboard(update.effective_user.id))
+    uid=update.effective_user.id
+    await update.message.reply_text(tr(uid,"choose"), reply_markup=keyboard(uid))
 
 async def setlang(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid=update.effective_user.id; LANG[uid]="km" if LANG[uid]=="en" else "en"
@@ -110,7 +146,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid=update.effective_user.id
-    msg=await update.message.reply_text("⏳ Scanning…")
+    msg=await update.message.reply_text("\u23f3 Scanning\u2026")
     try:
         attachment=update.message.effective_attachment
         tgfile=await (attachment[-1] if isinstance(attachment,(list,tuple)) else attachment).get_file()
@@ -122,7 +158,7 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         out=[tr(uid,"found").format(n=len(found))]
         for i,value in enumerate(found,1):
             is_link=value.lower().startswith(("http://","https://"))
-            out.append(f"\n{i}. {'🔗 '+tr(uid,'link') if is_link else '📝 '+tr(uid,'text')}\n{value}")
+            out.append(f"\n{i}. {'\U0001f517 '+tr(uid,'link') if is_link else '\U0001f4dd '+tr(uid,'text')}\n{value}")
             RECENT[uid].appendleft(value)
             if is_link:
                 reasons=suspicious(value)
@@ -130,37 +166,68 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text("".join(out), reply_markup=keyboard(uid), disable_web_page_preview=True)
     except Exception as exc:
         log.exception("Image scan failed")
-        await msg.edit_text("⚠️ Could not scan this image. Try a JPG or PNG with a clear QR code.")
+        await msg.edit_text("\u26a0\ufe0f Could not scan this image. Try a JPG or PNG with a clear QR code.")
 
 async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid=update.effective_user.id; text=update.message.text.strip()
-    buttons={tr(uid,"menu"),tr(uid,"create"),tr(uid,"history"),tr(uid,"settings")}
+    buttons={tr(uid,"menu"),tr(uid,"create"),tr(uid,"history"),tr(uid,"settings"),tr(uid,"language"),tr(uid,"convert")}
     if text in buttons:
         if text==tr(uid,"history"): return await history(update,context)
+        if text==tr(uid,"language"): return await setlang(update,context)
+        if text==tr(uid,"convert"):
+            return await update.message.reply_text(tr(uid,"convert_msg"), reply_markup=keyboard(uid))
+        if text==tr(uid,"settings"):
+            return await update.message.reply_text(tr(uid,"settings_msg"), reply_markup=keyboard(uid))
         return await choose(update,context)
-    try: await update.message.reply_photo(photo=make_qr(text), caption="✨ QR code · " + text[:800])
+    try: await update.message.reply_photo(photo=make_qr(text), caption="\u2728 QR code \xb7 " + text[:800])
     except Exception:
         log.exception("QR generation failed")
-        await update.message.reply_text("⚠️ Could not create that QR. Try shorter text.")
+        await update.message.reply_text("\u26a0\ufe0f Could not create that QR. Try shorter text.")
 
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path in ("/health", "/"):
+        if self.path == "/health":
             body=b'{"status":"ok","service":"qr-buddy"}'
             self.send_response(200); self.send_header("Content-Type","application/json"); self.send_header("Content-Length",str(len(body))); self.end_headers(); self.wfile.write(body)
+        elif self.path in ("/", "/index.html"):
+            try:
+                body=(Path(__file__).resolve().parent / "index.html").read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(body)
+            except OSError:
+                self.send_error(500, "Mini App file index.html is missing")
         else: self.send_error(404)
     def log_message(self,*args): pass
 
 def serve_health(): HTTPServer(("0.0.0.0",PORT),HealthHandler).serve_forever()
 
-def main():
-    threading.Thread(target=serve_health,daemon=True).start()
+async def run_bot():
+    """Explicit asyncio lifecycle works on modern Python versions too."""
     app=Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start",start)); app.add_handler(CommandHandler("help",help_cmd))
     app.add_handler(CommandHandler("lang",setlang)); app.add_handler(CommandHandler("clear",clear)); app.add_handler(CommandHandler("history",history))
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE,photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,text_message))
+    await app.initialize()
+    if app.updater is None:
+        raise RuntimeError("Telegram updater is unavailable")
+    await app.updater.start_polling(drop_pending_updates=True)
+    await app.start()
+    log.info("Telegram polling started")
+    try:
+        await asyncio.Event().wait()
+    finally:
+        await app.updater.stop()
+        await app.stop()
+        await app.shutdown()
+
+def main():
+    threading.Thread(target=serve_health,daemon=True).start()
     log.info("Starting QR Buddy bot and health server on port %s",PORT)
-    app.run_polling(drop_pending_updates=True)
+    asyncio.run(run_bot())
 
 if __name__=="__main__": main()
