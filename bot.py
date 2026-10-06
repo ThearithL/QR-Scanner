@@ -211,7 +211,15 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if is_link:
                 reasons=suspicious(value)
                 out.append("\n"+(tr(uid,"caution").format(why=", ".join(reasons)) if reasons else tr(uid,"okay")))
-        await msg.edit_text("".join(out), reply_markup=keyboard(uid), disable_web_page_preview=True)
+        # Reply keyboards cannot be attached to editMessageText; send the
+        # decoded result as a new message, where Telegram accepts the menu.
+        await update.message.reply_text(
+            "".join(out), reply_markup=keyboard(uid), disable_web_page_preview=True
+        )
+        try:
+            await msg.delete()
+        except Exception:
+            pass
     except Exception as exc:
         log.exception("Image scan failed")
         await msg.edit_text("\u26a0\ufe0f Could not scan this image. Try a JPG or PNG with a clear QR code.")
