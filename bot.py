@@ -175,7 +175,7 @@ def mini_button():
     # A web_app inline button launches a regular Mini App view instead.
     return InlineKeyboardMarkup([[InlineKeyboardButton(
         "Open QR Code Scanner",
-        url="https://t.me/MyQRCodeScannerBot?startapp",
+       url="https://t.me/MyQRCodeScannerBot?startapp&mode=fullscreen",
     )]])
 
 async def configure_user_menu(bot, uid):
