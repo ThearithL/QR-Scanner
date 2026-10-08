@@ -44,7 +44,7 @@ TEXT = {
         "okay": "No obvious warning found, but this does not prove the site is safe.", "clear": "Recent scan history cleared.", "empty": "No recent scans.", "history": "\U0001f558 Your recent scans (kept in memory only):\n", "lang": "Language set to English.", "help": "Send an image to scan, or send plain text/a link to generate a QR. Commands: /start /scan /createqr /size /miniapp /history /clear /lang /privacy /cancel /help",
         "too_large": "This image is too large to scan here. Send a smaller image, or use the Mini App to scan it on your device.",
         "no_detail": "Tip: send the original QR image as a File/Document to preserve its quality. Telegram compresses photos.",
-        "size_help": "Current QR image size: {size}px. Set it with /size 256, /size 512, /size 1024, or /size 2048. Example: /size 1024",
+        "size_help": "Current QR size: {size}px. Presets: /size simple (256), /size medium (512, recommended), /size large (1024), /size print (2048). Or use /size 256, 512, 1024, or 2048.",
         "size_set": "QR image size set to {size}px. This setting is kept while the bot is running.",
     },
     "km": {
@@ -58,8 +58,8 @@ TEXT = {
         "okay": "\u1798\u17b7\u1793\u1783\u17be\u1789\u179f\u1789\u17d2\u1789\u17b6\u1796\u17d2\u179a\u1798\u17b6\u1793\u1785\u17d2\u1794\u17b6\u179f\u17cb\u1791\u17c1 \u1794\u17c9\u17bb\u1793\u17d2\u178f\u17c2\u1798\u17b7\u1793\u17a2\u17b6\u1785\u1792\u17b6\u1793\u17b6\u1790\u17b6\u1782\u17c1\u17a0\u1791\u17c6\u1796\u17d0\u179a\u1798\u17b6\u1793\u179f\u17bb\u179c\u178f\u17d2\u1790\u17b7\u1797\u17b6\u1796\u1791\u17c1\u17d4", "clear": "\u1794\u17b6\u1793\u179b\u17bb\u1794\u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1790\u17d2\u1798\u17b8\u17d7\u17d4", "empty": "\u1798\u17b7\u1793\u1791\u17b6\u1793\u17cb\u1798\u17b6\u1793\u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1791\u17c1\u17d4", "history": "\U0001f558 \u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1790\u17d2\u1798\u17b8\u17d7 (\u179a\u1780\u17d2\u179f\u17b6\u1791\u17bb\u1780\u1780\u17d2\u1793\u17bb\u1784 memory \u1794\u17c9\u17bb\u178e\u17d2\u178e\u17c4\u17c7)\u17d6\n", "lang": "\u1794\u17b6\u1793\u1780\u17c6\u178e\u178f\u17cb\u1797\u17b6\u179f\u17b6\u1781\u17d2\u1798\u17c2\u179a\u17d4", "help": "\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794\u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793 \u17ac\u1795\u17d2\u1789\u17be\u17a2\u178f\u17d2\u1790\u1794\u1791/\u178f\u17c6\u178e\u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u1784\u17d2\u1780\u17be\u178f QR\u17d4 \u1796\u17b6\u1780\u17d2\u1799\u1794\u1789\u17d2\u1787\u17b6\u17d6 /start /scan /createqr /size /miniapp /history /clear /lang /privacy /cancel /help",
         "too_large": "\u179a\u17bc\u1794\u1792\u17c6\u1796\u17c1\u1780\u179f\u1798\u17d2\u179a\u17b6\u1794\u17cb\u179f\u17d2\u1780\u17c1\u1793\u1793\u17c5\u1791\u17b8\u1793\u17c1\u17c7\u17d4 \u179f\u17bc\u1798\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794\u178f\u17bc\u1785\u1787\u17b6\u1784\u1793\u17c1\u17c7 \u17ac\u1794\u17be\u1780 Mini App \u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793\u1793\u17c5\u179b\u17be\u17a7\u1794\u1780\u179a\u178e\u17cd\u179a\u1794\u179f\u17cb\u17a2\u17d2\u1793\u1780\u17d4",
         "no_detail": "\u1787\u17bd\u1799\u17b1\u17d2\u1799\u179f\u17d2\u1780\u17c1\u1793\u1787\u17b6\u1780\u17cb\u179b\u17b6\u1780\u17d4 \u179f\u17bc\u1798\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794 QR \u1787\u17b6 File/Document \u178a\u17be\u1798\u17d2\u1794\u17b8\u179a\u1780\u17d2\u179f\u17b6\u1782\u17bb\u178e\u1797\u17b6\u1796\u178a\u17be\u1798\u17d4 Telegram \u1794\u1784\u17d2\u179a\u17bd\u1789\u1782\u17bb\u178e\u1797\u17b6\u1796\u179a\u17bc\u1794\u1796\u17c1\u179b\u1795\u17d2\u1789\u17be\u1787\u17b6 Photo\u17d4",
-        "size_help": "\u1791\u17c6\u17a0\u17c6\u179a\u17bc\u1794 QR \u1794\u1785\u17d2\u1785\u17bb\u1794\u17d2\u1794\u1793\u17d2\u1793\u17d6 {size}px\u17d4 \u1780\u17c6\u178e\u178f\u17cb\u1787\u17b6\u1798\u17bd\u1799 /size 256, /size 512, /size 1024 \u17ac /size 2048\u17d4 \u17a7\u1791\u17b6\u17a0\u179a\u178e\u17cd\u17d6 /size 1024",
-        "size_set": "\u1794\u17b6\u1793\u1780\u17c6\u178e\u178f\u17cb\u1791\u17c6\u17a0\u17c6\u179a\u17bc\u1794 QR \u1791\u17c5 {size}px\u17d4 \u1780\u17b6\u179a\u1780\u17c6\u178e\u178f\u17cb\u1793\u17c1\u17c7\u179a\u1780\u17d2\u179f\u17b6\u1791\u17bb\u1780\u178f\u17c2\u1780\u17d2\u1793\u17bb\u1784 memory \u178f\u17d2\u179a\u17b9\u1798\u1796\u17c1\u179b bot \u1780\u17c6\u1796\u17bb\u1784\u178a\u17c6\u178e\u17be\u179a\u1780\u17b6\u179a\u1794\u17c9\u17bb\u178e\u17d2\u178e\u17c4\u17c7\u17d4",
+        "size_help": "ទំហំ QR បច្ចុប្បន្ន៖ {size}px។ ជម្រើស៖ /size simple (256), /size medium (512 ណែនាំ), /size large (1024), /size print (2048) ឬបញ្ចូលលេខ 256, 512, 1024, 2048។",
+        "size_set": "បានកំណត់ទំហំរូប QR ទៅ {size}px។ ការកំណត់នេះរក្សាទុកពេល bot កំពុងដំណើរការ។",
     },
 }
 
@@ -236,7 +236,7 @@ def decode_image(data):
             return decoded
     return decoded
 
-def make_qr(value, size=1024):
+def make_qr(value, size=512):
     # Dark teal on white keeps a branded look while preserving strong contrast.
     size = max(256, min(2048, int(size)))
     qr = qrcode.QRCode(
@@ -325,17 +325,19 @@ async def createqr_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def size_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
-    allowed = {256, 512, 1024, 2048}
+    presets = {"simple": 256, "small": 256, "medium": 512, "standard": 512,
+               "recommended": 512, "large": 1024, "hd": 1024, "print": 2048}
     if context.args:
+        choice = context.args[0].lower()
         try:
-            size = int(context.args[0])
+            size = presets[choice] if choice in presets else int(choice)
         except ValueError:
             size = 0
-        if size not in allowed:
-            return await update.message.reply_text(tr(uid, "size_help").format(size=context.user_data.get("qr_size", 1024)))
+        if size not in {256, 512, 1024, 2048}:
+            return await update.message.reply_text(tr(uid, "size_help").format(size=context.user_data.get("qr_size", 512)))
         context.user_data["qr_size"] = size
         return await update.message.reply_text(tr(uid, "size_set").format(size=size))
-    await update.message.reply_text(tr(uid, "size_help").format(size=context.user_data.get("qr_size", 1024)))
+    await update.message.reply_text(tr(uid, "size_help").format(size=context.user_data.get("qr_size", 512)))
 
 async def miniapp_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if MINI_APP_URL.startswith("https://"):
@@ -356,7 +358,7 @@ async def set_commands(app: Application):
         BotCommand("start", "Open QR Code Scanner menu"),
         BotCommand("scan", "Scan a QR image"),
         BotCommand("createqr", "Create a QR from text or a link"),
-        BotCommand("size", "Set QR image size: 256, 512, 1024, or 2048"),
+        BotCommand("size", "Choose simple/medium/large/print or set pixels"),
         BotCommand("miniapp", "Open the QR Mini App"),
         BotCommand("history", "Show recent scans"),
         BotCommand("clear", "Clear recent scans"),
@@ -476,7 +478,7 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return await update.message.reply_text(tr(uid,"settings_msg"), reply_markup=keyboard(uid))
         return await choose(update,context)
     PENDING.pop(uid, None)
-    try: await update.message.reply_photo(photo=make_qr(text, context.user_data.get("qr_size", 1024)), caption="\u2728 QR code \xb7 " + text[:800])
+    try: await update.message.reply_photo(photo=make_qr(text, context.user_data.get("qr_size", 512)), caption="\u2728 QR code \xb7 " + text[:800])
     except Exception:
         log.exception("QR generation failed")
         await update.message.reply_text("\u26a0\ufe0f Could not create that QR. Try shorter text.")
