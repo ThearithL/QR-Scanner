@@ -1,6 +1,8 @@
 """QR Code Scanner Telegram bot. Stores scan history in memory only; images are transient."""
 import io
 import asyncio
+import base64
+import json
 import logging
 import os
 import re
@@ -14,6 +16,7 @@ import cv2
 import numpy as np
 import zxingcpp
 import qrcode
+from PIL import Image
 from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, MenuButtonWebApp, ReplyKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
@@ -38,7 +41,7 @@ TEXT = {
         "convert_msg": "\U0001f517 Link to QR: send me a link and I will return a QR image.\n\U0001f4f7 QR to link: send me a QR photo or screenshot and I will read its contents.",
         "choose": "Send me a QR image to scan, or send text/link to create a QR.", "scan_prompt": "Send a QR photo or image file and I will scan it.", "create_prompt": "Send the text or link you want to turn into a QR code. Use /cancel to stop.", "cancelled": "Cancelled. Send a QR image or text/link whenever you are ready.", "privacy": "Privacy: uploaded images are processed temporarily for scanning and are not archived by this bot. Recent decoded results are kept in memory only and may disappear when Render restarts. The Mini App scans images locally in your browser.", "none": "No QR code found. Try a clearer image.",
         "found": "\U0001f50e Found {n} QR code(s):", "text": "Text", "link": "Link", "caution": "\u26a0\ufe0f This link has unusual features ({why}). Check the full domain before opening. This check is only a heuristic.",
-        "okay": "No obvious warning found, but this does not prove the site is safe.", "clear": "Recent scan history cleared.", "empty": "No recent scans.", "history": "\U0001f558 Your recent scans (kept in memory only):\n", "lang": "Language set to English.", "help": "Send an image to scan, or send plain text/a link to generate a QR. Commands: /start /scan /createqr /miniapp /history /clear /lang /privacy /cancel /help",
+        "okay": "No obvious warning found, but this does not prove the site is safe.", "clear": "Recent scan history cleared.", "empty": "No recent scans.", "history": "\U0001f558 Your recent scans (kept in memory only):\n", "lang": "Language set to English.", "help": "Send an image to scan, or send plain text/a link to generate a QR. Commands: /start /scan /createqr /size /miniapp /history /clear /lang /privacy /cancel /help",
         "too_large": "This image is too large to scan here. Send a smaller image, or use the Mini App to scan it on your device.",
         "no_detail": "Tip: send the original QR image as a File/Document to preserve its quality. Telegram compresses photos.",
         "size_help": "Current QR image size: {size}px. Set it with /size 256, /size 512, /size 1024, or /size 2048. Example: /size 1024",
@@ -52,7 +55,7 @@ TEXT = {
         "convert_msg": "\U0001f517 \u178f\u17c6\u178e \u1791\u17c5 QR: \u1795\u17d2\u1789\u17be\u178f\u17c6\u178e\u1798\u1780\u1794\u17bc\u178f \u178a\u17be\u1798\u17d2\u1794\u17b8\u1791\u1791\u17bd\u179b\u1794\u17b6\u1793\u179a\u17bc\u1794 QR\u17d4\n\U0001f4f7 QR \u1791\u17c5\u178f\u17c6\u178e: \u1795\u17d2\u1789\u17be\u179a\u17bc\u1794 QR \u17ac screenshot \u178a\u17be\u1798\u17d2\u1794\u17b8\u17b1\u17d2\u1799\u1794\u17bc\u178f\u17a2\u17b6\u1793\u1796\u17d0\u178f\u17cc\u1798\u17b6\u1793\u179a\u1794\u179f\u17cb\u179c\u17b6\u17d4",
         "choose": "\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794 QR \u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793 \u17ac\u1795\u17d2\u1789\u17be\u17a2\u178f\u17d2\u1790\u1794\u1791/\u178f\u17c6\u178e \u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u1784\u17d2\u1780\u17be\u178f QR\u17d4", "scan_prompt": "\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794 QR \u17ac\u17af\u1780\u179f\u17b6\u179a\u179a\u17bc\u1794\u1797\u17b6\u1796 \u1790\u17be\u1794\u17bc\u178f\u1793\u17b9\u1784\u179f\u17d2\u1780\u17c1\u1793\u179c\u17b6\u17d4", "create_prompt": "\u1795\u17d2\u1789\u17be\u17a2\u178f\u17d2\u1790\u1794\u1791 \u17ac\u178f\u17c6\u178e \u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u1784\u17d2\u1780\u17be\u178f QR Code\u17d4 \u1794\u17d2\u179a\u17be /cancel \u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u17c4\u17c7\u1794\u1784\u17cb\u17d4", "cancelled": "\u1794\u17b6\u1793\u1794\u1789\u17d2\u1788\u1794\u17cb\u17a0\u17be\u1799\u17d4 \u17a2\u17d2\u1793\u1780\u17a2\u17b6\u1785\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794 QR \u17ac\u17a2\u178f\u17d2\u1790\u1794\u1791/\u178f\u17c6\u178e\u1794\u17b6\u1793\u17d4", "privacy": "\u17af\u1780\u1787\u1793\u1797\u17b6\u1796\u17d6 \u179a\u17bc\u1794\u1797\u17b6\u1796\u1795\u17d2\u1789\u17be\u1798\u1780\u178f\u17d2\u179a\u17bc\u179c\u1794\u17d2\u179a\u1796\u17b9\u178f\u17d2\u178f\u1794\u178e\u17d2\u178f\u17c4\u17c7\u17a2\u17b6\u179f\u1793\u17d2\u1793\u179f\u1798\u17d2\u179a\u17b6\u1794\u17cb\u179f\u17d2\u1780\u17c1\u1793 \u17a0\u17be\u1799\u1798\u17b7\u1793\u179a\u1780\u17d2\u179f\u17b6\u1791\u17bb\u1780\u1791\u17c1\u17d4 \u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179b\u1791\u17d2\u1792\u1795\u179b\u1790\u17d2\u1798\u17b8\u17d7\u179a\u1780\u17d2\u179f\u17b6\u1791\u17bb\u1780\u178f\u17c2\u1780\u17d2\u1793\u17bb\u1784 memory \u17a0\u17be\u1799\u17a2\u17b6\u1785\u1794\u17b6\u178f\u17cb\u1796\u17c1\u179b Render restart\u17d4 Mini App \u179f\u17d2\u1780\u17c1\u1793\u179a\u17bc\u1794\u1793\u17c5\u179b\u17be browser \u179a\u1794\u179f\u17cb\u17a2\u17d2\u1793\u1780\u17d4", "none": "\u179a\u1780\u1798\u17b7\u1793\u1783\u17be\u1789 QR \u1791\u17c1\u17d4 \u179f\u17b6\u1780\u179b\u17d2\u1794\u1784\u179a\u17bc\u1794\u178a\u17c2\u179b\u1785\u17d2\u1794\u17b6\u179f\u17cb\u1787\u17b6\u1784\u1793\u17c1\u17c7\u17d4",
         "found": "\U0001f50e \u179a\u1780\u1783\u17be\u1789 QR \u1785\u17c6\u1793\u17bd\u1793 {n}\u17d6", "text": "\u17a2\u178f\u17d2\u1790\u1794\u1791", "link": "\u178f\u17c6\u178e", "caution": "\u26a0\ufe0f \u178f\u17c6\u178e\u1793\u17c1\u17c7\u1798\u17b6\u1793\u179b\u1780\u17d2\u1781\u178e\u17c8\u1798\u17b7\u1793\u1792\u1798\u17d2\u1798\u178f\u17b6 ({why})\u17d4 \u179f\u17bc\u1798\u1796\u17b7\u1793\u17b7\u178f\u17d2\u1799 domain \u1796\u17c1\u1789\u1798\u17bb\u1793\u1794\u17be\u1780\u17d4 \u1780\u17b6\u179a\u178f\u17d2\u179a\u17bd\u178f\u1796\u17b7\u1793\u17b7\u178f\u17d2\u1799\u1793\u17c1\u17c7\u1782\u17d2\u179a\u17b6\u1793\u17cb\u178f\u17c2\u1787\u17b6\u1780\u17b6\u179a\u1794\u17c9\u17b6\u1793\u17cb\u179f\u17d2\u1798\u17b6\u1793\u17d4",
-        "okay": "\u1798\u17b7\u1793\u1783\u17be\u1789\u179f\u1789\u17d2\u1789\u17b6\u1796\u17d2\u179a\u1798\u17b6\u1793\u1785\u17d2\u1794\u17b6\u179f\u17cb\u1791\u17c1 \u1794\u17c9\u17bb\u1793\u17d2\u178f\u17c2\u1798\u17b7\u1793\u17a2\u17b6\u1785\u1792\u17b6\u1793\u17b6\u1790\u17b6\u1782\u17c1\u17a0\u1791\u17c6\u1796\u17d0\u179a\u1798\u17b6\u1793\u179f\u17bb\u179c\u178f\u17d2\u1790\u17b7\u1797\u17b6\u1796\u1791\u17c1\u17d4", "clear": "\u1794\u17b6\u1793\u179b\u17bb\u1794\u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1790\u17d2\u1798\u17b8\u17d7\u17d4", "empty": "\u1798\u17b7\u1793\u1791\u17b6\u1793\u17cb\u1798\u17b6\u1793\u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1791\u17c1\u17d4", "history": "\U0001f558 \u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1790\u17d2\u1798\u17b8\u17d7 (\u179a\u1780\u17d2\u179f\u17b6\u1791\u17bb\u1780\u1780\u17d2\u1793\u17bb\u1784 memory \u1794\u17c9\u17bb\u178e\u17d2\u178e\u17c4\u17c7)\u17d6\n", "lang": "\u1794\u17b6\u1793\u1780\u17c6\u178e\u178f\u17cb\u1797\u17b6\u179f\u17b6\u1781\u17d2\u1798\u17c2\u179a\u17d4", "help": "\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794\u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793 \u17ac\u1795\u17d2\u1789\u17be\u17a2\u178f\u17d2\u1790\u1794\u1791/\u178f\u17c6\u178e\u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u1784\u17d2\u1780\u17be\u178f QR\u17d4 \u1796\u17b6\u1780\u17d2\u1799\u1794\u1789\u17d2\u1787\u17b6\u17d6 /start /scan /createqr /miniapp /history /clear /lang /privacy /cancel /help",
+        "okay": "\u1798\u17b7\u1793\u1783\u17be\u1789\u179f\u1789\u17d2\u1789\u17b6\u1796\u17d2\u179a\u1798\u17b6\u1793\u1785\u17d2\u1794\u17b6\u179f\u17cb\u1791\u17c1 \u1794\u17c9\u17bb\u1793\u17d2\u178f\u17c2\u1798\u17b7\u1793\u17a2\u17b6\u1785\u1792\u17b6\u1793\u17b6\u1790\u17b6\u1782\u17c1\u17a0\u1791\u17c6\u1796\u17d0\u179a\u1798\u17b6\u1793\u179f\u17bb\u179c\u178f\u17d2\u1790\u17b7\u1797\u17b6\u1796\u1791\u17c1\u17d4", "clear": "\u1794\u17b6\u1793\u179b\u17bb\u1794\u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1790\u17d2\u1798\u17b8\u17d7\u17d4", "empty": "\u1798\u17b7\u1793\u1791\u17b6\u1793\u17cb\u1798\u17b6\u1793\u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1791\u17c1\u17d4", "history": "\U0001f558 \u1794\u17d2\u179a\u179c\u178f\u17d2\u178f\u17b7\u179f\u17d2\u1780\u17c1\u1793\u1790\u17d2\u1798\u17b8\u17d7 (\u179a\u1780\u17d2\u179f\u17b6\u1791\u17bb\u1780\u1780\u17d2\u1793\u17bb\u1784 memory \u1794\u17c9\u17bb\u178e\u17d2\u178e\u17c4\u17c7)\u17d6\n", "lang": "\u1794\u17b6\u1793\u1780\u17c6\u178e\u178f\u17cb\u1797\u17b6\u179f\u17b6\u1781\u17d2\u1798\u17c2\u179a\u17d4", "help": "\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794\u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793 \u17ac\u1795\u17d2\u1789\u17be\u17a2\u178f\u17d2\u1790\u1794\u1791/\u178f\u17c6\u178e\u178a\u17be\u1798\u17d2\u1794\u17b8\u1794\u1784\u17d2\u1780\u17be\u178f QR\u17d4 \u1796\u17b6\u1780\u17d2\u1799\u1794\u1789\u17d2\u1787\u17b6\u17d6 /start /scan /createqr /size /miniapp /history /clear /lang /privacy /cancel /help",
         "too_large": "\u179a\u17bc\u1794\u1792\u17c6\u1796\u17c1\u1780\u179f\u1798\u17d2\u179a\u17b6\u1794\u17cb\u179f\u17d2\u1780\u17c1\u1793\u1793\u17c5\u1791\u17b8\u1793\u17c1\u17c7\u17d4 \u179f\u17bc\u1798\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794\u178f\u17bc\u1785\u1787\u17b6\u1784\u1793\u17c1\u17c7 \u17ac\u1794\u17be\u1780 Mini App \u178a\u17be\u1798\u17d2\u1794\u17b8\u179f\u17d2\u1780\u17c1\u1793\u1793\u17c5\u179b\u17be\u17a7\u1794\u1780\u179a\u178e\u17cd\u179a\u1794\u179f\u17cb\u17a2\u17d2\u1793\u1780\u17d4",
         "no_detail": "\u1787\u17bd\u1799\u17b1\u17d2\u1799\u179f\u17d2\u1780\u17c1\u1793\u1787\u17b6\u1780\u17cb\u179b\u17b6\u1780\u17d4 \u179f\u17bc\u1798\u1795\u17d2\u1789\u17be\u179a\u17bc\u1794 QR \u1787\u17b6 File/Document \u178a\u17be\u1798\u17d2\u1794\u17b8\u179a\u1780\u17d2\u179f\u17b6\u1782\u17bb\u178e\u1797\u17b6\u1796\u178a\u17be\u1798\u17d4 Telegram \u1794\u1784\u17d2\u179a\u17bd\u1789\u1782\u17bb\u178e\u1797\u17b6\u1796\u179a\u17bc\u1794\u1796\u17c1\u179b\u1795\u17d2\u1789\u17be\u1787\u17b6 Photo\u17d4",
         "size_help": "\u1791\u17c6\u17a0\u17c6\u179a\u17bc\u1794 QR \u1794\u1785\u17d2\u1785\u17bb\u1794\u17d2\u1794\u1793\u17d2\u1793\u17d6 {size}px\u17d4 \u1780\u17c6\u178e\u178f\u17cb\u1787\u17b6\u1798\u17bd\u1799 /size 256, /size 512, /size 1024 \u17ac /size 2048\u17d4 \u17a7\u1791\u17b6\u17a0\u179a\u178e\u17cd\u17d6 /size 1024",
@@ -76,6 +79,88 @@ def suspicious(value):
         return reasons
     except Exception:
         return ["invalid link"]
+
+def classify_payload(value):
+    """Identify common QR payload formats; unknown payloads remain readable as text."""
+    text = (value or "").strip()
+    lower = text.lower()
+    if lower.startswith("wifi:"):
+        return "wifi"
+    if lower.startswith(("begin:vcard", "mecard:")):
+        return "contact"
+    if lower.startswith(("begin:VEVENT".lower(), "begin:vcalendar")):
+        return "calendar"
+    if lower.startswith("data:image/"):
+        return "image"
+    if lower.startswith("binary:"):
+        return "binary"
+    if lower.startswith(("geo:", "google.navigation:")):
+        return "location"
+    if lower.startswith("tel:"):
+        return "phone"
+    if lower.startswith("mailto:"):
+        return "email"
+    if lower.startswith(("sms:", "smsto:", "mmsto:")):
+        return "sms"
+    if lower.startswith(("bitcoin:", "ethereum:", "lightning:", "upi:", "payto:")):
+        return "payment"
+    if lower.startswith(("http://", "https://")):
+        parsed = urlparse(text)
+        path = parsed.path.lower()
+        image_format = (parsed.query or "").lower()
+        if re.search(r"\.(png|jpe?g|gif|webp|bmp|avif|svg)$", path) or re.search(r"(?:^|[=&])(png|jpe?g|gif|webp|bmp|avif|svg)(?:$|[&])", image_format):
+            return "image"
+        return "link"
+    if text.startswith(("{", "[")):
+        try:
+            json.loads(text)
+            return "json"
+        except (ValueError, TypeError):
+            pass
+    if re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", text):
+        return "email"
+    if re.fullmatch(r"\+?[\d\s().-]{7,22}", text) and sum(ch.isdigit() for ch in text) >= 7:
+        return "phone"
+    if re.match(r"^[a-z][a-z0-9+.-]*:", text, re.I):
+        return "uri"
+    return "text"
+
+def payload_type_label(kind, uid):
+    labels = {
+        "en": {"wifi": "Wi-Fi network", "contact": "Contact card", "calendar": "Calendar event",
+               "image": "Image", "location": "Location", "phone": "Phone number", "email": "Email",
+               "sms": "SMS message", "payment": "Payment / crypto", "json": "JSON data",
+               "uri": "App link / data", "binary": "Binary data", "link": "Web link", "text": "Text / data"},
+        "km": {"wifi": "បណ្តាញ Wi‑Fi", "contact": "បណ្ណទំនាក់ទំនង", "calendar": "ព្រឹត្តិការណ៍ប្រតិទិន",
+               "image": "រូបភាព", "location": "ទីតាំង", "phone": "លេខទូរស័ព្ទ", "email": "អ៊ីមែល",
+               "sms": "សារ SMS", "payment": "ការទូទាត់ / គ្រីបតូ", "json": "ទិន្នន័យ JSON",
+               "uri": "តំណកម្មវិធី / ទិន្នន័យ", "binary": "ទិន្នន័យឯកសារ", "link": "តំណគេហទំព័រ", "text": "អត្ថបទ / ទិន្នន័យ"},
+    }
+    return labels[LANG[uid]].get(kind, labels[LANG[uid]]["text"])
+
+def barcode_payload(barcode):
+    """Preserve binary QR byte-mode payloads instead of replacing them with junk text."""
+    text = (getattr(barcode, "text", "") or "").strip()
+    if text and "\ufffd" not in text and not any(ord(ch) < 32 and ch not in "\r\n\t" for ch in text):
+        return text
+    raw = getattr(barcode, "bytes", b"") or b""
+    if raw:
+        return "binary:" + base64.b64encode(raw).decode("ascii")
+    return text
+
+def embedded_payload_bytes(value):
+    """Unpack a QR's inline binary/data-URI content, with a strict size cap."""
+    try:
+        if value.startswith("binary:"):
+            raw = base64.b64decode(value[7:], validate=True)
+        else:
+            match = re.fullmatch(r"data:image/(?:png|jpeg|jpg|gif|webp|bmp);base64,([A-Za-z0-9+/=]+)", value, re.I)
+            if not match:
+                return None
+            raw = base64.b64decode(match.group(1), validate=True)
+        return raw if 0 < len(raw) <= 5 * 1024 * 1024 else None
+    except (ValueError, base64.binascii.Error):
+        return None
 
 def decode_image(data):
     """Decode QR symbols using ZXing first and enhanced OpenCV fallbacks.
@@ -104,7 +189,7 @@ def decode_image(data):
     # Prefer a dedicated QR decoder. Also try luminance and inverted grayscale
     # because colorful logos and dark-background QR designs can confuse binarizing.
     try:
-        add(r.text for r in zxingcpp.read_barcodes(image, formats=zxingcpp.BarcodeFormat.QRCode))
+        add(barcode_payload(r) for r in zxingcpp.read_barcodes(image, formats=zxingcpp.BarcodeFormat.QRCode))
     except Exception:
         log.exception("ZXing QR decode failed")
     if decoded:
@@ -129,7 +214,7 @@ def decode_image(data):
     for candidate in variants:
         try:
             results = zxingcpp.read_barcodes(candidate, formats=zxingcpp.BarcodeFormat.QRCode)
-            add(r.text for r in results)
+            add(barcode_payload(r) for r in results)
             if decoded:
                 return decoded
         except Exception:
@@ -153,14 +238,18 @@ def decode_image(data):
 
 def make_qr(value, size=1024):
     # Dark teal on white keeps a branded look while preserving strong contrast.
+    size = max(256, min(2048, int(size)))
     qr = qrcode.QRCode(
         error_correction=qrcode.constants.ERROR_CORRECT_H,
-        box_size=max(1, min(2048, int(size)) // 45),
+        box_size=8,
         border=4,
     )
     qr.add_data(value)
     qr.make(fit=True)
     img = qr.make_image(fill_color="#123C46", back_color="#FFFFFF")
+    # QRCode's natural dimensions depend on payload length. Resize with nearest
+    # neighbor so /size 256, 512, etc. produces the exact requested pixel size.
+    img = img.resize((size, size), resample=Image.Resampling.NEAREST)
     buf = io.BytesIO(); buf.name = "qr-code-scanner.png"; img.save(buf, format="PNG"); buf.seek(0)
     return buf
 
@@ -171,11 +260,11 @@ def keyboard(uid):
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
 def mini_button():
-    # Open the configured Main Mini App, which uses BotFather's Fullsize mode.
-    # A web_app inline button launches a regular Mini App view instead.
+    # Launch the bot's Main Mini App and explicitly request fullscreen mode.
+    # This works only when the Main Mini App is configured for this bot in BotFather.
     return InlineKeyboardMarkup([[InlineKeyboardButton(
         "Open QR Code Scanner",
-       url="https://t.me/MyQRCodeScannerBot?startapp&mode=fullscreen",
+        url="https://t.me/MyQRCodeScannerBot?startapp&mode=fullscreen",
     )]])
 
 async def configure_user_menu(bot, uid):
@@ -285,34 +374,90 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid=update.effective_user.id
     PENDING.pop(uid, None)
     msg=await update.message.reply_text("\u23f3 Scanning\u2026")
+
+    async def finish_with_text(text):
+        # ReplyKeyboardMarkup is only valid on a new message, not editMessageText.
+        await update.message.reply_text(text, reply_markup=keyboard(uid), disable_web_page_preview=True)
+        try:
+            await msg.delete()
+        except Exception:
+            log.debug("Could not remove scan status message", exc_info=True)
+
     try:
         attachment=update.message.effective_attachment
         tgfile=await (attachment[-1] if isinstance(attachment,(list,tuple)) else attachment).get_file()
         data=bytes(await tgfile.download_as_bytearray())
         if len(data) > 15 * 1024 * 1024:
-            await msg.edit_text(tr(uid,"too_large"), reply_markup=keyboard(uid)); return
+            await finish_with_text(tr(uid,"too_large")); return
         # Keep CPU-heavy decoding off the Telegram polling event loop.
         found=await asyncio.to_thread(decode_image,data)
         del data
         if not found:
-            await msg.edit_text(tr(uid,"none")+"\n\n"+tr(uid,"no_detail"), reply_markup=keyboard(uid)); return
+            await finish_with_text(tr(uid,"none")+"\n\n"+tr(uid,"no_detail")); return
         out=[tr(uid,"found").format(n=len(found))]
+        embedded_files = []
         for i,value in enumerate(found,1):
+            kind = classify_payload(value)
             is_link=value.lower().startswith(("http://","https://"))
-            out.append(f"\n{i}. {'\U0001f517 '+tr(uid,'link') if is_link else '\U0001f4dd '+tr(uid,'text')}\n{value}")
+            raw_embedded = embedded_payload_bytes(value)
+            shown_value = value
+            if raw_embedded is not None:
+                filename = f"qr-payload-{i}.bin"
+                try:
+                    with Image.open(io.BytesIO(raw_embedded)) as image:
+                        if image.width * image.height > 25_000_000:
+                            raise ValueError("Embedded image dimensions exceed the preview limit")
+                        image.verify()
+                        extension = (image.format or "").lower()
+                        if extension in {"png", "jpeg", "gif", "webp", "bmp"}:
+                            filename = f"qr-image-{i}.{extension}"
+                            kind = "image"
+                            embedded_files.append((raw_embedded, filename, True))
+                        else:
+                            embedded_files.append((raw_embedded, filename, False))
+                except Exception:
+                    embedded_files.append((raw_embedded, filename, False))
+                shown_value = f"[Embedded content attached: {filename}]"
+            elif kind == "binary":
+                shown_value = "[Binary QR data]"
+            icon = "🖼️" if kind == "image" else "🔗" if kind in {"link", "uri", "payment"} else "📡" if kind == "wifi" else "👤" if kind == "contact" else "📍" if kind == "location" else "📄"
+            out.append(f"\n{i}. {icon} {payload_type_label(kind, uid)}\n{shown_value}")
             RECENT[uid].appendleft(value)
             if is_link:
                 reasons=suspicious(value)
                 out.append("\n"+(tr(uid,"caution").format(why=", ".join(reasons)) if reasons else tr(uid,"okay")))
-        # Reply keyboards cannot be attached to editMessageText; send the
-        # decoded result as a new message, where Telegram accepts the menu.
-        await update.message.reply_text(
-            "".join(out), reply_markup=keyboard(uid), disable_web_page_preview=True
-        )
+        # Keep each Telegram message under its 4096-character limit, including
+        # cases where one photo contains many QR codes or unusually long data.
+        text = "".join(out)
+        chunks = []
+        while len(text) > 3500:
+            cut = text.rfind("\n", 0, 3500)
+            if cut < 1:
+                cut = 3500
+            chunks.append(text[:cut])
+            text = text[cut:].lstrip("\n")
+        if text:
+            chunks.append(text)
+        for index, chunk in enumerate(chunks):
+            await update.message.reply_text(
+                chunk,
+                reply_markup=keyboard(uid) if index == len(chunks) - 1 else None,
+                disable_web_page_preview=True,
+            )
         try:
             await msg.delete()
         except Exception:
-            pass
+            log.debug("Could not remove scan status message", exc_info=True)
+        for raw_data, filename, is_image in embedded_files:
+            file_obj = io.BytesIO(raw_data)
+            file_obj.name = filename
+            try:
+                if is_image:
+                    await update.message.reply_photo(photo=file_obj, caption=f"🖼️ {filename}")
+                else:
+                    await update.message.reply_document(document=file_obj, caption=f"📦 {filename}")
+            except Exception:
+                log.exception("Could not send embedded QR payload as an attachment")
     except Exception as exc:
         log.exception("Image scan failed")
         await msg.edit_text("\u26a0\ufe0f Could not scan this image. Try a JPG or PNG with a clear QR code.")

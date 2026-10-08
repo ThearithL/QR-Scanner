@@ -7,6 +7,7 @@ A bilingual (Khmer/English) QR scanner and QR creator. The Mini App scans images
 - The Mini App requests fullscreen on launch by default. Settings offers Full screen, Expanded, and Compact display choices; selections are saved per device when Save is pressed. Telegram client and platform support determines the available native sizes.
 
 - Scan QR codes from photos, screenshots, and image files; attempt multi-code detection with ZXing and enhanced OpenCV fallbacks for colorful, inverted, or logo-style codes.
+- Identify common scan results as web/image links, plain text, Wi‑Fi credentials, contacts (vCard/MECARD), phone, email, SMS, locations, calendar events, JSON, payment/crypto links, or other URI/binary data. Unknown formats still show their original contents. The Mini App can preview image URLs or embedded images after you tap Preview; binary QR payloads can be downloaded by the bot.
 - Use the Mini App quick menu to jump to Scan, Create, Convert, History, and language controls.
 - Use the **Convert** option for either direction: turn a link into a QR image, or scan a QR image to read its link/text.
 - Create clean, colored QR codes in the Mini App with high contrast presets and custom colors; choose 256, 512, 1024 (HD), or 2048 (print) pixel exports. Bot QR images use dark teal on white with a full quiet border for scanability, and `/size` controls the output size.
@@ -61,7 +62,7 @@ Free Render service filesystems are ephemeral. This project intentionally keeps 
 ## Telegram Mini App setup
 
 - The Mini App URL must use HTTPS and be publicly accessible.
-- When `MINI_APP_URL` is set, the Telegram chat menu button opens the regular Mini App view. The `/start` and `/miniapp` messages also include a Main Mini App deep link (`https://t.me/MyQRCodeScannerBot?startapp`) so users can use BotFather Fullsize mode. Slash commands remain available by typing `/`.
+- When `MINI_APP_URL` is set, the Telegram chat menu button opens the regular Mini App view. The `/start` and `/miniapp` messages include a Main Mini App deep link requesting fullscreen (`https://t.me/MyQRCodeScannerBot?startapp&mode=fullscreen`). Configure the bot's Main Mini App in @BotFather; Telegram client support and the actual bot username must match. Slash commands remain available by typing `/`.
 - The app also works as a normal website; Telegram WebApp APIs are optional enhancements.
 
 ## Commands
